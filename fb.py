@@ -72,13 +72,57 @@ def cleardata(file):
     except: return
     s.truncate(); s.close()
 
+def paramquotationlist(p):
+    params = []
+    while True:
+        try:
+            p1 = p.index("\""); p = p[:p1] + p[p1 + 1:]
+            p2 = p.index("\""); p = p[:p2] + p[p2 + 1:]
+            params.append(p[p1:p2])
+        except ValueError:
+            if params == []: return None
+            return params
+
+def paramnumberlist(p):
+    params = []; i = -1; tempparam = [""]; inquotations = False; addingdone = True
+    while True:
+        try:
+            i += 1
+            tp = int(p[i])
+            if not inquotations:
+                addingdone = False
+                tempparam[0] += str(tp)
+        except ValueError:
+            if p[i] == "\"":
+                if inquotations: inquotations = False
+                elif not inquotations: inquotations = True
+            if p[i] == " " and not inquotations and not addingdone:
+                params.append(int(tempparam[0]))
+                tempparam[0] = ""
+                addingdone = True
+        except IndexError:
+            if not addingdone:
+                params.append(int(tempparam[0]))
+                tempparam[0] = ""
+            if params == []: return None
+            return params
+
+def paramlistlist(p,i):
+    params = paramquotationlist(p)
+    if params is None: return None
+    if len(params) == 0: return None
+    params = params[i]; params = params.split(",")
+    for n in params:
+        if str(n).startswith(" "): params[params.index(n)] = n[1:]
+        if n[len(n) - 1] == " ": params[params.index(n)] = n[:len(n) - 1]
+    return params
+
 def BotHasPermissions(ctx):
     if not ctx.message.guild: return True
-    for member in ctx.guild:
+    for member in ctx.guild.members:
         if str(member.id) == str(client.user.id):
-            if member.guild.owner: return True
             for role in member.roles:
-                if role.permissions.administrator: return True
+                if role.permissions.administrator and role.permissions.manage_messages: return True
     return False
 
 def AuthorHasPermissions(ctx):
@@ -98,12 +142,7 @@ async def ResponseMessage(ctx,response,messagereaction,preset=""):
     mri = {"success":CHAR_SUCCESS,"failed":CHAR_FAILED}
     await ctx.message.add_reaction(mri[messagereaction])
 
-async def ClearReactions(message):
-    for reaction in message.reactions:
-        async for user in reaction.users():
-            await reaction.remove(user)
-
-async def ReactionChoiceMessage(ctx,reactionmessage,choices):
+async def ReactionChoiceMessage(ctx,reactionmessage,choices: int):
     global reactionresponse
     # Max Reaction Choices = 5
     nif = {1:CHAR_A,2:CHAR_B,3:CHAR_C,4:CHAR_D,5:CHAR_E}
@@ -126,9 +165,63 @@ async def ReactionChoiceMessage(ctx,reactionmessage,choices):
         return False
     try:
         reaction, user = await client.wait_for('reaction_add',timeout=60.0,check=check)
-    except asyncio.TimeoutError: ClearReactions(reactionmessage)
+    except asyncio.TimeoutError: await reactionmessage.clear_reactions()
     else: return reactionresponse
     return 0
+
+def PREListCompare(parameters,newparameters):
+    PRECheck = True
+    for np in newparameters:
+        for p in parameters:
+            if np[0] == p[0] and np[1] == p[1]:
+                if np[2] == p[2] and p[3]: PRECheck = False
+    return PRECheck
+
+async def ParameterResponseEmbed(ctx,title,parameters: list):
+    global newparameters; global responsedonecalled
+    # parameters: [['name','string',"",True],['parts','integer',0,True],['creators','list',[],False]]
+    if len(parameters) == 0: return []
+    newparameters = []
+    for param in parameters: newparameters.append(param)
+    responseembed = discord.Embed(title=title,description=
+    "*Type >>param \"parameter\" \"new value(s)\" to change conditions, and >>done when done*",color=0x5c5c5c)
+    for param in newparameters:
+        paramr = " "
+        if param[3]: paramr = " *"
+        paramvalue = ""
+        if param[1] == "string": paramvalue = param[2]
+        if param[1] == "integer": paramvalue = str(param[2])
+        if param[1] == "list":
+            if not param[2]: paramvalue = "None"
+            else:paramvalue = str(param[2]).replace("[","").replace("]","")
+        responseembed.add_field(name=param[0] + paramr,value=paramvalue,inline=False)
+        newparameters[newparameters.index(param)].append(newparameters.index(param))
+    responseembedmessage = await ctx.message.channel.send(embed=responseembed)
+    responsedonecalled = False
+    def check(message):
+        global newparameters; global responsedonecalled
+        if str(message.content).startswith(">>done"): responsedonecalled = True; return True
+        if str(message.content).startswith(">>param "):
+            paramresponse = str(message.content).replace(">>param",""); paramq = paramquotationlist(paramresponse)
+            if paramq is None: return False
+            if len(paramq) != 2: return False
+            for p in newparameters:
+                if str(p[0]).lower() == str(paramq[0]).lower():
+                    if p[1] == "list": paramq[1] = paramlistlist(paramresponse,1)
+                    newparameters[newparameters.index(p)][2] = paramq[1]
+                    responseembed.set_field_at(p[4],name=p[0],value=str(paramq[1]))
+                    return True
+        return False
+    while True:
+        if responsedonecalled: break
+        try:
+            message = await client.wait_for('message',timeout=60.0,check=check)
+        except asyncio.TimeoutError: return []
+        else:
+            await responseembedmessage.edit(embed=responseembed)
+            await message.add_reaction(CHAR_SUCCESS)
+    if not PREListCompare(parameters,newparameters): return None
+    return newparameters
 
 
 @client.event
@@ -145,16 +238,34 @@ async def on_ready():
 async def host(ctx):
     if AuthorHasPermissions(ctx):
         if ctx.guild:
-            hostServer = await ctx.message.channel.send("Ready to host a new Megacollab?\n"
-                                                        "**A** - In this Server\n"
-                                                        "**B** - Create a new Server")
-            hostServerResponse = await ReactionChoiceMessage(ctx,hostServer,2)
-            print(hostServerResponse)
-
+            if BotHasPermissions(ctx):
+                hostServer = await ctx.message.channel.send("Ready to host a new Megacollab?\n"
+                                                            "**A** - In this Server\n"
+                                                            "**B** - Create a new Server")
+                hostServerResponse = await ReactionChoiceMessage(ctx,hostServer,2)
+                await hostServer.clear_reactions()
+                if hostServerResponse == 1 or hostServerResponse == 2:
+                    hostMC_NAME = "None"
+                    hostMC_SONG = "None"
+                    hostMC_DIFFICULTY = "Extreme Demon"
+                    hostMC_OTHERHOSTS = []
+                    hostMC_PARTS = 4
+                    hostMC1R = await ParameterResponseEmbed(ctx,"Start a Megacollab",[["Name","string",hostMC_NAME,True],
+                                                                                      ["Song","string",hostMC_SONG,True],
+                                                                                      ["Difficulty","string",hostMC_DIFFICULTY,True],
+                                                                                      ["Other Hosts","list",hostMC_OTHERHOSTS,False],
+                                                                                      ["Parts","integer",hostMC_PARTS,False]])
+                    print(hostMC1R)
+                    if hostServerResponse == 2:
+                        await ResponseMessage(ctx,"Server for Megacollabs are not supported yet!","failed")
+                    elif hostServerResponse == 1:
+                        hostMC_SERVER = ctx.message.guild
+            else:
+                await ResponseMessage(ctx,"","failed","botlacksperms")
         else:
             await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
     else:
-        await ResponseMessage(ctx,"","failed","invalidparams")
+        await ResponseMessage(ctx,"","failed","authorlacksperms")
 
 
 
