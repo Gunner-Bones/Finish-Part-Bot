@@ -184,7 +184,8 @@ async def ResponseMessage(ctx,response,messagereaction,preset=""):
     if preset != "":
         pi = {"authorlacksperms":"You do not have Permission to perform this!",
               "botlacksperms":client.user.name + " does not have Permissions to perform this!",
-              "invalidparams":"Invalid parameters!"}
+              "invalidparams":"Invalid parameters!",
+              "nomc":"You are not hosting a Megacollab here!"}
         response = pi[preset]
     await ctx.message.channel.send("**" + ctx.author.name + "**, " + response)
     mri = {"success":CHAR_SUCCESS,"failed":CHAR_FAILED}
@@ -223,8 +224,6 @@ def PREListCompare(parameters,newparameters):
         for p in parameters:
             if np[0] == p[0] and np[1] == p[1]:
                 if np[2] == p[2] and p[3] and np[3]:
-                    print(np)
-                    print(p)
                     PRECheck = False
     return PRECheck
 
@@ -316,6 +315,32 @@ def GetAdminRole(ctx,user):
                 if role.permissions.administrator and role.permissions.manage_messages: return role
     return None
 
+async def MCContext(ctx):
+    mcsfound = []
+    for mcid in alldatakeys("fp-mcdir.txt"):
+        mcd = datasettings(file="fp-mcdir.txt",method="get",line=mcid); mcd = mcd.split(";")
+        mchost = GetMemberGlobal(mcd[6]); mcserver = GetGuild(mcd[7])
+        if mchost is None: continue
+        if mcserver is None: continue
+        if mchost == ctx.author and mcserver == ctx.message.guild: mcsfound.append(mcd)
+    if not mcsfound: return None
+    if len(mcsfound) == 1: return mcsfound[0]
+    else:
+        iin = 1; mcfmcs = ""
+        for mc in mcsfound:
+            iil = "**A** - "
+            if iin == 2: iil = "**B* - "
+            if iin == 3: iil = "**C* - "
+            if iin == 4: iil = "**D* - "
+            if iin == 5: iil = "**E* - "
+            mcfmcs += iil + mc[0] + "\n"
+            iil += 1
+        mcfm = await ctx.message.channel.send("**" + ctx.author.name + "**, which megacollab are you referring to?\n" + mcfmcs)
+        mcmresponse = await ReactionChoiceMessage(ctx,mcfm,iin)
+        if 1 <= mcmresponse <= 5: return mcsfound[mcmresponse - 1]
+        else: return None
+
+
 @client.event
 async def on_ready():
     print("Bot Ready!")
@@ -339,7 +364,7 @@ async def host(ctx):
                 if hostServerResponse == 1:
                     hostMC_NAME = "None"
                     hostMC_SONG = "None"
-                    hostMC_DIFFICULTY = "Extreme Demon"
+                    hostMC_DIFFICULTY = "None"
                     hostMC_OTHERHOSTS = []
                     hostMC_PARTS = 4
                     hostMC_VERIFIER = "None"
@@ -368,7 +393,7 @@ async def host(ctx):
                         mcw = hostMC_NAME + ";" + hostMC_SONG + ";" + hostMC_DIFFICULTY + ";" + \
                             str(hostMC_PARTS) + ";" + str(mcohid) + ";" + str(hostMC_VERIFIER.id) + ";" + \
                               str(ctx.message.author.id) + ";" + str(ctx.message.guild.id)
-                        datasettings(file="fp-mcdir.txt",method="add",newkey=hostMC_ID + ".txt",newvalue=mcw)
+                        datasettings(file="fp-mcdir.txt",method="add",newkey=hostMC_ID,newvalue=mcw)
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt",method="add",newkey="NAME",newvalue=hostMC_NAME)
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt",method="add",newkey="SONG",newvalue=hostMC_SONG)
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt",method="add",newkey="DIFFICULTY",newvalue=hostMC_DIFFICULTY)
@@ -416,7 +441,6 @@ async def host(ctx):
                                               "\n**Song**: " + hostMC_SONG +
                                               "\n**Difficulty**: " + hostMC_DIFFICULTY +
                                               "\n**Host**: " + ctx.message.author.name +
-                                              "\n**Co-Hosts**: " + str(mcohn) +
                                               "\n**Verifier**: " + hostMC_VERIFIER.name +
                                               "\n**Parts**: " + str(hostMC_PARTS) +
                                               "\n**Roles**: " + hostMC_HOSTROLE.mention + " " + hostMC_CREATORROLE.mention +
@@ -433,7 +457,20 @@ async def host(ctx):
     else:
         await ResponseMessage(ctx,"","failed","authorlacksperms")
 
-
-
+@client.command(pass_context=True)
+async def assignparts(ctx):
+    if AuthorHasPermissions(ctx):
+        if ctx.guild:
+            if BotHasPermissions(ctx):
+                if MCContext(ctx) is not None:
+                    pass
+                else:
+                    await ResponseMessage(ctx, "", "failed", "nomc")
+            else:
+                await ResponseMessage(ctx,"","failed","botlacksperms")
+        else:
+            await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+    else:
+        await ResponseMessage(ctx,"","failed","authorlacksperms")
 
 client.run(SECRET)
