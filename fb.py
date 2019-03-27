@@ -144,12 +144,16 @@ class Megacollab(object):
 
         self.creators = []
         self.partlist = []
+        self.globalpartlist = []
         for p in range(1,self.parts + 1):
             self.partlist.append(Part(mc=self,position=p,ptype=None,ptime=None,creators=[],pgroups=None,pcolors=None))
-
     def upg(self):
         return [self.name,self.song,self.difficulty,self.parts,self.cohosts,self.verifier,self.host,self.server]
-    def assignparts(self,ptype,custom=None,creators=None):
+    def cupg(self):
+        pg = self.upg()
+        pg.append([self.creators,self.partlist,self.globalpartlist])
+        return pg
+    def assignparts(self,ptype,custom=None,creators=None,globalcreators=None):
         """
         PART TYPES
         x = self.parts (number of parts)
@@ -174,14 +178,20 @@ class Megacollab(object):
         -LDD: 1 Layout and 2 Decorator slots (this does happen sometimes where 2 decorators decorate one part)
         -D: 1 Decorator slot (if a Layout was made for the entire level)
         -L: 1 Layout slot where layout is used for entire level
+        -A: 1 Art slot
 
         *****Again, part types are not limited to 7, I used x = 7 in the notes above for demonstration of how it
         would look, as x is displayed as your megacollab's part number when viewing part types.*****
         """
-        # creators: [[user1,user2],[user1,user2]...]\
+        # creators & globalcreators: [[user1,user2],[user1,user2]...]
 
         # Assigning Slots
         if ptype != "CUSTOM":
+            if ptype == "1LXD":
+                globalpart = GlobalPart(mc=self)
+                globalpartslot = Slot(mc=self,part=globalpart,stype="L",sid=1,creator=globalcreators[0])
+                globalpart.slot = globalpartslot
+                self.globalpartlist.append(globalpart)
             for part in self.partlist: part.generateslots_normal(ptype=ptype,creators=creators[part.position - 1])
         elif ptype == "CUSTOM":
             for part in self.partlist: part.generateslots_custom(custom=custom)
@@ -211,9 +221,20 @@ class Megacollab(object):
                 if part.position == 1: part.pgroups = "3-" + str(apc); apn += apc
                 else: part.pgroups = str(int(apn + 1)) + "-" + str(apc); apn += apc
 
+class GlobalPart(object):
+    def __init__(self,mc,slot=None,pgroups=None,pcolors=None,status=None,video=None):
+        self.mc = mc
+        self.slot = slot
+        self.pgroups = pgroups
+        self.pcolors = pcolors
+        self.status = status
+        self.video = video
+    def upg(self):
+        return [self.mc,self.slot,self.pgroups,self.pcolors,self.status,self.video]
+
 
 class Part(object):
-    def __init__(self,mc,position,ptype=None,ptime=None,creators=None,pgroups=None,pcolors=None,status=None):
+    def __init__(self,mc,position,ptype=None,ptime=None,creators=None,pgroups=None,pcolors=None,status=None,video=None):
         self.ptype = ptype
         self.ptime = ptime
         self.pgroups = pgroups
@@ -222,6 +243,7 @@ class Part(object):
         self.mc = mc
         self.position = position
         self.status = status
+        self.video = video
         self.slots = []
     def generateslots_normal(self,ptype,creators):
         # Order matters for list: creators
@@ -232,7 +254,6 @@ class Part(object):
         if ptype == "XC":
             self.slots.append(Slot(mc=self.mc, part=self, stype="C", sid=self.position, creator=creators[0]))
         if ptype == "1LXD":
-            self.slots.append(Slot(mc=self.mc, part=self, stype="L", sid=1, creator=creators[0]))
             self.slots.append(Slot(mc=self.mc, part=self, stype="D", sid=self.position, creator=creators[1]))
     def generateslots_custom(self,custom):
         """
@@ -256,7 +277,7 @@ class Part(object):
             'partpos': 2
             'slots': [
             {
-                'stype': 'L1'
+                'stype': 'L2'
                 'creator': discord user obj
             },
             {
@@ -273,6 +294,9 @@ class Part(object):
                         self.slots.append(Slot(mc=self.mc, part=self, stype=slot['stype'][0], sid=int(slot['stype'][1]),
                                                creator=slot['creator']))
                     break
+    def upg(self):
+        return [self.mc,self.ptype,self.ptime,self.pgroups,self.pcolors,self.creators,self.position,self.status,
+                self.video,self.slots]
     def __str__(self):
         pass
 
@@ -625,7 +649,7 @@ async def assignparts(ctx):
     if AuthorHasPermissions(ctx):
         if ctx.guild:
             if BotHasPermissions(ctx):
-                if MCContext(ctx) is not None:
+                if await MCContext(ctx) is not None:
                     pass
                 else:
                     await ResponseMessage(ctx, "", "failed", "nomc")
