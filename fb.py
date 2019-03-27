@@ -23,6 +23,11 @@ CHAR_C = "🇨"
 CHAR_D = "🇩"
 CHAR_E = "🇪"
 
+EMOJI_EMPTY = "<:empty:560341877212315658>"
+EMOJI_ASSIGNED = "<:assigned:560341866445537300>"
+EMOJI_PROGRESS = "<:progress:560341884992487425>"
+EMOJI_FINISHED = "<:finished:560341892881973248>"
+
 def datasettings(file,method,line="",newvalue="",newkey=""):
     """
     :param file: (str).txt
@@ -120,6 +125,164 @@ def paramlistlist(p,i):
         if str(n).startswith(" "): params[params.index(n)] = n[1:]
         if n[len(n) - 1] == " ": params[params.index(n)] = n[:len(n) - 1]
     return params
+
+class Megacollab(object):
+    def __init__(self,mcid,name="None",song="None",difficulty="None",parts=4,cohosts=None,verifier=None,host=None,server=None,rpg=None):
+        self.mcid = mcid
+        self.name = name
+        self.song = song
+        self.difficulty = difficulty
+        self.parts = parts
+        self.cohosts = cohosts
+        self.verifier = verifier
+        self.host = host
+        self.server = server
+
+        if rpg is not None:
+            self.name = rpg[0]; self.song = rpg[1]; self.difficulty = rpg[2]; self.parts = rpg[3]; self.cohosts = rpg[4]
+            self.verifier = rpg[5]; self.host = rpg[6]; self.server = rpg[7]
+
+        self.creators = []
+        self.partlist = []
+        for p in range(1,self.parts + 1):
+            self.partlist.append(Part(mc=self,position=p,ptype=None,ptime=None,creators=[],pgroups=None,pcolors=None))
+
+    def upg(self):
+        return [self.name,self.song,self.difficulty,self.parts,self.cohosts,self.verifier,self.host,self.server]
+    def assignparts(self,ptype,custom=None,creators=None):
+        """
+        PART TYPES
+        x = self.parts (number of parts)
+        *****For demonstration, let's make x = 7. Replace 7 and multiples of 7 with x.*****
+
+        A SLOT is a space a user can take to either Layout [L], Decorate [D], or Create (both) [C]. A PART is a section
+        of the level that fulfills the Layout and Decoration requirements for that range. A PART can have different
+        combinations of SLOTS (one slot user creates the entire part, 2 slots where 1 decorates and 1 layouts, etc)
+        To avoid confusion, the difference between a CREATOR [C] slot and a LAYOUT and DECORATOR [LD] slot pair is
+        a Creator is a single user decorating/layouting a part while a LD pair is 2 separate users where one does Layout
+        and one does Decoration.
+
+        -7L7D: 7 Parts, 14 user slots. Each part consists of a Layout slot and a Decoration slot by separate users.
+        -7C: 7 Parts, 7 user slots. Each part is Created by a slot user.
+        -1L7D: 7 parts, 8 user slots. The Layout for the entire level is made by a single slot user while each part
+        only has 1 slot for decorating.
+        -CUSTOM: Custom combination of L, D, and C.
+
+        INDIVIDUAL PART SLOT TYPES (used for making CUSTOM part combinations)
+        -C: 1 Creator slot
+        -LD: 1 Layout and 1 Decorator slot
+        -LDD: 1 Layout and 2 Decorator slots (this does happen sometimes where 2 decorators decorate one part)
+        -D: 1 Decorator slot (if a Layout was made for the entire level)
+        -L: 1 Layout slot where layout is used for entire level
+
+        *****Again, part types are not limited to 7, I used x = 7 in the notes above for demonstration of how it
+        would look, as x is displayed as your megacollab's part number when viewing part types.*****
+        """
+        # creators: [[user1,user2],[user1,user2]...]\
+
+        # Assigning Slots
+        if ptype != "CUSTOM":
+            for part in self.partlist: part.generateslots_normal(ptype=ptype,creators=creators[part.position - 1])
+        elif ptype == "CUSTOM":
+            for part in self.partlist: part.generateslots_custom(custom=custom)
+
+        # Assigning Colors
+        apin = True
+        for part in self.partlist:
+            if apin: part.pcolors = "1-100"; apin = False
+            if not apin: part.pcolors = "101-200"; apin = True
+
+        # Assigning Groups
+        if self.parts < 20:
+            # Group sets: 50 - 100 - 150 - 200
+            apd = int(999.0 / float(self.parts)); apc = 0
+            if apd <= 50: apc = 50
+            elif 100 >= apd >= 50:
+                if 100 - apd > 50 - apd: apc = 100
+                else: apc = 50
+            elif 150 >= apd >= 100:
+                if 150 - apd > 100 - apd: apc = 150
+                else: apc = 100
+            elif 200 >= apd >= 150:
+                if 200 - apd > 150 - apd: apc = 200
+                else: apc = 150
+            apn = 0
+            for part in self.partlist:
+                if part.position == 1: part.pgroups = "3-" + str(apc); apn += apc
+                else: part.pgroups = str(int(apn + 1)) + "-" + str(apc); apn += apc
+
+
+class Part(object):
+    def __init__(self,mc,position,ptype=None,ptime=None,creators=None,pgroups=None,pcolors=None,status=None):
+        self.ptype = ptype
+        self.ptime = ptime
+        self.pgroups = pgroups
+        self.pcolors = pcolors
+        self.creators = creators
+        self.mc = mc
+        self.position = position
+        self.status = status
+        self.slots = []
+    def generateslots_normal(self,ptype,creators):
+        # Order matters for list: creators
+        # If 1LXD: creators[0] will always be the Layouter slot
+        if ptype == "XLXD":
+            self.slots.append(Slot(mc=self.mc, part=self, stype="L", sid=self.position, creator=creators[0]))
+            self.slots.append(Slot(mc=self.mc, part=self, stype="D", sid=self.position, creator=creators[1]))
+        if ptype == "XC":
+            self.slots.append(Slot(mc=self.mc, part=self, stype="C", sid=self.position, creator=creators[0]))
+        if ptype == "1LXD":
+            self.slots.append(Slot(mc=self.mc, part=self, stype="L", sid=1, creator=creators[0]))
+            self.slots.append(Slot(mc=self.mc, part=self, stype="D", sid=self.position, creator=creators[1]))
+    def generateslots_custom(self,custom):
+        """
+        :param custom: List of Dictionaries containing part structure
+        A single part can have max 4 slots
+        Example:
+        [{
+            'partpos': 1,
+            'slots': [
+            {
+                'stype': 'L1'
+                'creator': discord user obj
+            },
+            {
+                'stype': 'D1'
+                'creator': discord user obj
+            }
+            ]
+        },
+        {
+            'partpos': 2
+            'slots': [
+            {
+                'stype': 'L1'
+                'creator': discord user obj
+            },
+            {
+                'stype': 'D2'
+                'creator': discord user obj
+            }
+            ]
+        },...]
+        """
+        for part in custom:
+            if part is not None:
+                if part['partpos'] == self.position:
+                    for slot in part['slots']:
+                        self.slots.append(Slot(mc=self.mc, part=self, stype=slot['stype'][0], sid=int(slot['stype'][1]),
+                                               creator=slot['creator']))
+                    break
+    def __str__(self):
+        pass
+
+class Slot(object):
+    def __init__(self,mc,part,stype,sid,creator):
+        self.mc = mc
+        self.part = part
+        self.stype = stype
+        self.sid = sid
+        self.creator = creator
 
 def GetMember(mn,s):
     if str(mn).startswith("<@"):
