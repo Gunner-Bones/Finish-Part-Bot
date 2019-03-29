@@ -1,4 +1,4 @@
-import discord, asyncio, sys, os, urllib.request, json, math, random, ast, datetime, base64, time, copy
+import discord, asyncio, sys, os, urllib.request, json, math, random, ast, datetime, base64, time, copy, pickle, traceback
 from discord.ext import commands
 
 Client = discord.Client()
@@ -126,33 +126,45 @@ def paramlistlist(p,i):
         if n[len(n) - 1] == " ": params[params.index(n)] = n[:len(n) - 1]
     return params
 
+MCS = []
+
 class Megacollab(object):
     def __init__(self,mcid,name="None",song="None",difficulty="None",parts=4,cohosts=None,verifier=None,host=None,server=None,rpg=None):
-        self.mcid = mcid
-        self.name = name
-        self.song = song
-        self.difficulty = difficulty
-        self.parts = parts
-        self.cohosts = cohosts
-        self.verifier = verifier
-        self.host = host
-        self.server = server
+        (filename, line_number, function_name, text) = traceback.extract_stack()[-2]
+        def_name = text[:text.find('=')].strip()
+        self.fname = def_name
 
-        if rpg is not None:
-            self.name = rpg[0]; self.song = rpg[1]; self.difficulty = rpg[2]; self.parts = rpg[3]; self.cohosts = rpg[4]
-            self.verifier = rpg[5]; self.host = rpg[6]; self.server = rpg[7]
+        try: self.load()
+        except:
+            self.mcid = mcid
+            self.name = name
+            self.song = song
+            self.difficulty = difficulty
+            self.parts = parts
+            self.cohosts = cohosts
+            self.verifier = verifier
+            self.host = host
+            self.server = server
 
-        self.creators = []
-        self.partlist = []
-        self.globalpartlist = []
-        for p in range(1,self.parts + 1):
-            self.partlist.append(Part(mc=self,position=p,ptype=None,ptime=None,creators=[],pgroups=None,pcolors=None))
-    def upg(self):
-        return [self.name,self.song,self.difficulty,self.parts,self.cohosts,self.verifier,self.host,self.server]
-    def cupg(self):
-        pg = self.upg()
-        pg.append([self.creators,self.partlist,self.globalpartlist])
-        return pg
+            if rpg is not None:
+                self.name = rpg[0]; self.song = rpg[1]; self.difficulty = rpg[2]; self.parts = rpg[3]; self.cohosts = rpg[4]
+                self.verifier = rpg[5]; self.host = rpg[6]; self.server = rpg[7]
+
+            self.creators = []
+            self.partlist = []
+            self.globalpartlist = []
+            for p in range(1,self.parts + 1):
+                self.partlist.append(Part(mc=self,position=p,ptype=None,ptime=None,creators=[],pgroups=None,pcolors=None))
+            self.save()
+    def save(self):
+        f = open(self.mcid + "/" + self.fname + ".txt","w")
+        f.write(pickle.dumps(self.__dict__))
+        f.close()
+    def load(self):
+        f = open(self.mcid + "/" + self.fname + ".txt","r")
+        dataPickle = f.read()
+        f.close()
+        self.__dict__ = pickle.loads(dataPickle)
     def assignparts(self,ptype,custom=None,creators=None,globalcreators=None):
         """
         PART TYPES
@@ -223,28 +235,47 @@ class Megacollab(object):
 
 class GlobalPart(object):
     def __init__(self,mc,slot=None,pgroups=None,pcolors=None,status=None,video=None):
-        self.mc = mc
-        self.slot = slot
-        self.pgroups = pgroups
-        self.pcolors = pcolors
-        self.status = status
-        self.video = video
-    def upg(self):
-        return [self.mc,self.slot,self.pgroups,self.pcolors,self.status,self.video]
+        (filename, line_number, function_name, text) = traceback.extract_stack()[-2]
+        def_name = text[:text.find('=')].strip()
+        self.fname = def_name
+
+        try: self.load()
+        except:
+            self.mc = mc
+            self.slot = slot
+            self.pgroups = pgroups
+            self.pcolors = pcolors
+            self.status = status
+            self.video = video
+    def save(self):
+        f = open(self.mcid + "/" + self.fname + ".txt","w")
+        f.write(pickle.dumps(self.__dict__))
+        f.close()
+    def load(self):
+        f = open(self.mcid + "/" + self.fname + ".txt","r")
+        dataPickle = f.read()
+        f.close()
+        self.__dict__ = pickle.loads(dataPickle)
 
 
 class Part(object):
     def __init__(self,mc,position,ptype=None,ptime=None,creators=None,pgroups=None,pcolors=None,status=None,video=None):
-        self.ptype = ptype
-        self.ptime = ptime
-        self.pgroups = pgroups
-        self.pcolors = pcolors
-        self.creators = creators
-        self.mc = mc
-        self.position = position
-        self.status = status
-        self.video = video
-        self.slots = []
+        (filename, line_number, function_name, text) = traceback.extract_stack()[-2]
+        def_name = text[:text.find('=')].strip()
+        self.fname = def_name
+
+        try: self.load()
+        except:
+            self.ptype = ptype
+            self.ptime = ptime
+            self.pgroups = pgroups
+            self.pcolors = pcolors
+            self.creators = creators
+            self.mc = mc
+            self.position = position
+            self.status = status
+            self.video = video
+            self.slots = []
     def generateslots_normal(self,ptype,creators):
         # Order matters for list: creators
         # If 1LXD: creators[0] will always be the Layouter slot
@@ -294,11 +325,31 @@ class Part(object):
                         self.slots.append(Slot(mc=self.mc, part=self, stype=slot['stype'][0], sid=int(slot['stype'][1]),
                                                creator=slot['creator']))
                     break
-    def upg(self):
-        return [self.mc,self.ptype,self.ptime,self.pgroups,self.pcolors,self.creators,self.position,self.status,
-                self.video,self.slots]
+    def save(self):
+        f = open(self.mcid + "/" + self.fname + ".txt","w")
+        f.write(pickle.dumps(self.__dict__))
+        f.close()
+    def load(self):
+        f = open(self.mcid + "/" + self.fname + ".txt","r")
+        dataPickle = f.read()
+        f.close()
+        self.__dict__ = pickle.loads(dataPickle)
     def __str__(self):
-        pass
+        psstatus = EMOJI_EMPTY
+        if self.status == "assigned": psstatus = EMOJI_ASSIGNED
+        if self.status == "progress": psstatus = EMOJI_PROGRESS
+        if self.status == "finished": psstatus = EMOJI_FINISHED
+        pstime = "`No Time Range assigned`"
+        if self.ptime is not None: pstime = self.ptime
+        pscreators = "UNASSIGNED"
+        if len(self.creators) >= 1:
+            pscreators = ""
+            for creator in self.creators: pscreators += creator.name + " "
+        pscolors = "`No Colors generated`"
+        if self.pcolors is not None: pscolors = self.pcolors
+        psgroups = "`No Groups generated`"
+        if self.pgroups is not None: psgroups = self.pgroups
+        return psstatus + " " + pstime + " - " + pscreators + " - Colors: " + pscolors + " - Groups: " + psgroups
 
 class Slot(object):
     def __init__(self,mc,part,stype,sid,creator):
@@ -307,6 +358,7 @@ class Slot(object):
         self.stype = stype
         self.sid = sid
         self.creator = creator
+
 
 def GetMember(mn,s):
     if str(mn).startswith("<@"):
