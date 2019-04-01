@@ -129,39 +129,35 @@ def paramlistlist(p,i):
 MCS = []
 
 class Megacollab(object):
-    def __init__(self,mcid,name="None",song="None",difficulty="None",parts=4,cohosts=None,verifier=None,host=None,server=None,rpg=None):
+    def __init__(self,mcid,name="None",song="None",difficulty="None",parts=4,cohosts=None,verifier=None,host=None,server=None):
         (filename, line_number, function_name, text) = traceback.extract_stack()[-2]
         def_name = text[:text.find('=')].strip()
         self.fname = def_name
+        self.mcid = mcid
 
         try: self.load()
         except:
-            self.mcid = mcid
             self.name = name
             self.song = song
             self.difficulty = difficulty
-            self.parts = parts
+            self.parts = int(parts)
             self.cohosts = cohosts
-            self.verifier = verifier
-            self.host = host
-            self.server = server
-
-            if rpg is not None:
-                self.name = rpg[0]; self.song = rpg[1]; self.difficulty = rpg[2]; self.parts = rpg[3]; self.cohosts = rpg[4]
-                self.verifier = rpg[5]; self.host = rpg[6]; self.server = rpg[7]
+            self.verifier = GetMemberGlobal(verifier)
+            self.host = GetMemberGlobal(host)
+            self.server = GetGuild(server)
 
             self.creators = []
             self.partlist = []
             self.globalpartlist = []
             for p in range(1,self.parts + 1):
-                self.partlist.append(Part(mc=self,position=p,ptype=None,ptime=None,creators=[],pgroups=None,pcolors=None))
+                self.partlist.append(Part(mc=self,position=p,ptype=None,ptime=None,creators=[],pgroups=None,pcolors=None,mcid=self.mcid))
             self.save()
     def save(self):
-        f = open(self.mcid + "/" + self.fname + ".txt","w")
+        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","w+")
         f.write(pickle.dumps(self.__dict__))
         f.close()
     def load(self):
-        f = open(self.mcid + "/" + self.fname + ".txt","r")
+        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","r")
         dataPickle = f.read()
         f.close()
         self.__dict__ = pickle.loads(dataPickle)
@@ -200,8 +196,8 @@ class Megacollab(object):
         # Assigning Slots
         if ptype != "CUSTOM":
             if ptype == "1LXD":
-                globalpart = GlobalPart(mc=self)
-                globalpartslot = Slot(mc=self,part=globalpart,stype="L",sid=1,creator=globalcreators[0])
+                globalpart = GlobalPart(mc=self,mcid=self.mcid)
+                globalpartslot = Slot(mc=self,part=globalpart,stype="L",sid=1,creator=globalcreators[0],mcid=self.mcid)
                 globalpart.slot = globalpartslot
                 self.globalpartlist.append(globalpart)
             for part in self.partlist: part.generateslots_normal(ptype=ptype,creators=creators[part.position - 1])
@@ -234,10 +230,11 @@ class Megacollab(object):
                 else: part.pgroups = str(int(apn + 1)) + "-" + str(apc); apn += apc
 
 class GlobalPart(object):
-    def __init__(self,mc,slot=None,pgroups=None,pcolors=None,status=None,video=None):
+    def __init__(self,mc,mcid,slot=None,pgroups=None,pcolors=None,status=None,video=None):
         (filename, line_number, function_name, text) = traceback.extract_stack()[-2]
         def_name = text[:text.find('=')].strip()
         self.fname = def_name
+        self.mcid = mcid
 
         try: self.load()
         except:
@@ -248,21 +245,22 @@ class GlobalPart(object):
             self.status = status
             self.video = video
     def save(self):
-        f = open(self.mcid + "/" + self.fname + ".txt","w")
+        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","w+")
         f.write(pickle.dumps(self.__dict__))
         f.close()
     def load(self):
-        f = open(self.mcid + "/" + self.fname + ".txt","r")
+        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","r")
         dataPickle = f.read()
         f.close()
         self.__dict__ = pickle.loads(dataPickle)
 
 
 class Part(object):
-    def __init__(self,mc,position,ptype=None,ptime=None,creators=None,pgroups=None,pcolors=None,status=None,video=None):
+    def __init__(self,mc,mcid,position,ptype=None,ptime=None,creators=None,pgroups=None,pcolors=None,status=None,video=None):
         (filename, line_number, function_name, text) = traceback.extract_stack()[-2]
         def_name = text[:text.find('=')].strip()
         self.fname = def_name
+        self.mcid = mcid
 
         try: self.load()
         except:
@@ -280,12 +278,12 @@ class Part(object):
         # Order matters for list: creators
         # If 1LXD: creators[0] will always be the Layouter slot
         if ptype == "XLXD":
-            self.slots.append(Slot(mc=self.mc, part=self, stype="L", sid=self.position, creator=creators[0]))
-            self.slots.append(Slot(mc=self.mc, part=self, stype="D", sid=self.position, creator=creators[1]))
+            self.slots.append(Slot(mc=self.mc, part=self, stype="L", sid=self.position, creator=creators[0],mcid=self.mcid))
+            self.slots.append(Slot(mc=self.mc, part=self, stype="D", sid=self.position, creator=creators[1],mcid=self.mcid))
         if ptype == "XC":
-            self.slots.append(Slot(mc=self.mc, part=self, stype="C", sid=self.position, creator=creators[0]))
+            self.slots.append(Slot(mc=self.mc, part=self, stype="C", sid=self.position, creator=creators[0],mcid=self.mcid))
         if ptype == "1LXD":
-            self.slots.append(Slot(mc=self.mc, part=self, stype="D", sid=self.position, creator=creators[1]))
+            self.slots.append(Slot(mc=self.mc, part=self, stype="D", sid=self.position, creator=creators[1],mcid=self.mcid))
     def generateslots_custom(self,custom):
         """
         :param custom: List of Dictionaries containing part structure
@@ -322,15 +320,15 @@ class Part(object):
             if part is not None:
                 if part['partpos'] == self.position:
                     for slot in part['slots']:
-                        self.slots.append(Slot(mc=self.mc, part=self, stype=slot['stype'][0], sid=int(slot['stype'][1]),
+                        self.slots.append(Slot(mc=self.mc, mcid=self.mcid,part=self, stype=slot['stype'][0], sid=int(slot['stype'][1]),
                                                creator=slot['creator']))
                     break
     def save(self):
-        f = open(self.mcid + "/" + self.fname + ".txt","w")
+        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","w+")
         f.write(pickle.dumps(self.__dict__))
         f.close()
     def load(self):
-        f = open(self.mcid + "/" + self.fname + ".txt","r")
+        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","r")
         dataPickle = f.read()
         f.close()
         self.__dict__ = pickle.loads(dataPickle)
@@ -352,13 +350,28 @@ class Part(object):
         return psstatus + " " + pstime + " - " + pscreators + " - Colors: " + pscolors + " - Groups: " + psgroups
 
 class Slot(object):
-    def __init__(self,mc,part,stype,sid,creator):
-        self.mc = mc
-        self.part = part
-        self.stype = stype
-        self.sid = sid
-        self.creator = creator
+    def __init__(self,mc,mcid,part,stype,sid,creator):
+        (filename, line_number, function_name, text) = traceback.extract_stack()[-2]
+        def_name = text[:text.find('=')].strip()
+        self.fname = def_name
+        self.mcid = mcid
 
+        try: self.load()
+        except:
+            self.mc = mc
+            self.part = part
+            self.stype = stype
+            self.sid = sid
+            self.creator = creator
+    def save(self):
+        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","w+")
+        f.write(pickle.dumps(self.__dict__))
+        f.close()
+    def load(self):
+        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","r")
+        dataPickle = f.read()
+        f.close()
+        self.__dict__ = pickle.loads(dataPickle)
 
 def GetMember(mn,s):
     if str(mn).startswith("<@"):
@@ -557,7 +570,7 @@ def GetAdminRole(ctx,user):
 async def MCContext(ctx):
     mcsfound = []
     for mcid in alldatakeys("fp-mcdir.txt"):
-        mcd = datasettings(file="fp-mcdir.txt",method="get",line=mcid); mcd = mcd.split(";")
+        mcd = datasettings(file="fp-mcdir.txt",method="get",line=mcid); mcd = mcd.split(";"); mcd.append(mcid)
         mchost = GetMemberGlobal(mcd[6]); mcserver = GetGuild(mcd[7])
         if mchost is None: continue
         if mcserver is None: continue
@@ -592,6 +605,7 @@ async def on_ready():
 
 @client.command(pass_context=True)
 async def host(ctx):
+    global MCS
     if AuthorHasPermissions(ctx):
         if ctx.guild:
             if BotHasPermissions(ctx):
@@ -625,12 +639,18 @@ async def host(ctx):
                         for h in hostMC_OTHERHOSTS: mcohid.append(h.name)
                         hostMC_PARTS = hostMC1R[4][2]
                         hostMC_VERIFIER = hostMC1R[5][2]
+                        mcv = hostMC_VERIFIER; mcvn = hostMC_VERIFIER
+                        try: mcv = mcv.id
+                        except: mcv = "None"
+                        try: mcvn = mcvn.name
+                        except: mcvn = "None"
                         hostMC_ID = str(random.randint(10000,99999))
                         for mcid in alldatakeys("fp-mcdir.txt"):
                             if mcid == hostMC_ID: hostMC_ID = str(random.randint(10000,99999))
                         newfile("fp-mc/" + hostMC_ID + ".txt")
+                        os.mkdir("fp-mc/" + hostMC_ID)
                         mcw = hostMC_NAME + ";" + hostMC_SONG + ";" + hostMC_DIFFICULTY + ";" + \
-                            str(hostMC_PARTS) + ";" + str(mcohid) + ";" + str(hostMC_VERIFIER.id) + ";" + \
+                            str(hostMC_PARTS) + ";" + str(mcohid) + ";" + mcv + ";" + \
                               str(ctx.message.author.id) + ";" + str(ctx.message.guild.id)
                         datasettings(file="fp-mcdir.txt",method="add",newkey=hostMC_ID,newvalue=mcw)
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt",method="add",newkey="NAME",newvalue=hostMC_NAME)
@@ -638,7 +658,7 @@ async def host(ctx):
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt",method="add",newkey="DIFFICULTY",newvalue=hostMC_DIFFICULTY)
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="PARTS", newvalue=str(hostMC_PARTS))
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="OTHERHOSTS", newvalue=str(mcohid))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="VERIFIER",newvalue=str(hostMC_VERIFIER.id))
+                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="VERIFIER",newvalue=mcv)
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="OWNER", newvalue=str(ctx.message.author.id))
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="SERVER", newvalue=str(ctx.message.guild.id))
                         hostMC_HOSTROLE = await ctx.message.guild.create_role(name=hostMC_NAME + " Host",color=RandomColor(),mentionable=True,hoist=True)
@@ -676,11 +696,15 @@ async def host(ctx):
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-UPDATES",newvalue=str(hostMC_UPDATESCHANNEL.id))
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-PROGRESS",newvalue=str(hostMC_PROGRESSCHANNEL.id))
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-FINISHEDPARTS",newvalue=str(hostMC_FINISHEDPARTSCHANNEL.id))
+
+                        hostMC = Megacollab(name=hostMC_NAME,mcid=hostMC_ID,song=hostMC_SONG,difficulty=hostMC_DIFFICULTY,parts=hostMC_PARTS,cohosts=hostMC_OTHERHOSTS,
+                                            verifier=hostMC_VERIFIER,host=ctx.message.author,server=ctx.message.guild)
+                        MCS.append(hostMC)
                         await ResponseMessage(ctx,"Megacollab Created! (MC ID: " + hostMC_ID + ")\n**Name**: " + hostMC_NAME + \
                                               "\n**Song**: " + hostMC_SONG +
                                               "\n**Difficulty**: " + hostMC_DIFFICULTY +
                                               "\n**Host**: " + ctx.message.author.name +
-                                              "\n**Verifier**: " + hostMC_VERIFIER.name +
+                                              "\n**Verifier**: " + mcvn +
                                               "\n**Parts**: " + str(hostMC_PARTS) +
                                               "\n**Roles**: " + hostMC_HOSTROLE.mention + " " + hostMC_CREATORROLE.mention +
                                               " " + hostMC_VERIFIERROLE.mention + " " + hostMC_FINISHROLE.mention +
@@ -711,5 +735,14 @@ async def assignparts(ctx):
             await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
     else:
         await ResponseMessage(ctx,"","failed","authorlacksperms")
+
+@client.command(pass_context=True)
+async def ctest(ctx):
+    mcc = await MCContext(ctx)
+    print(mcc)
+    hostMC = Megacollab(name=mcc[0], mcid=mcc[8], song=mcc[1], difficulty=mcc[2],
+                        parts=mcc[3], cohosts=mcc[4],
+                        verifier=mcc[5], host=mcc[6], server=mcc[7])
+    MCS.append(hostMC)
 
 client.run(SECRET)
