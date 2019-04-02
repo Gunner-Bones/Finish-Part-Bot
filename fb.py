@@ -592,6 +592,88 @@ async def MCContext(ctx):
         if 1 <= mcmresponse <= 5: return mcsfound[mcmresponse - 1]
         else: return None
 
+def StrToLODU(st):
+    stm = st.replace("[","").replace("]",""); stm = stm.split(",")
+    for u in stm: stm[stm.index(u)] = GetMemberGlobal(u)
+    return stm
+
+def DUToStr(du):
+    dus = "None"
+    try: dus = du.name
+    except: pass
+    return dus
+
+def ListToStr(st):
+    stm = st.replace("[", "").replace("]", ""); stm = stm.split(",")
+    return stm
+
+def LODUToStr(l):
+    for du in l:
+        dus = "None"
+        try: dus = du.name
+        except: pass
+        l[l.index(du)] = dus
+    return str(l).replace("[","").replace("]","")
+
+
+def PartsMessage(mcid,pos):
+    pmCreators = LODUToStr(StrToLODU(datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="CREATORS")))
+    pmGroups = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="GROUPS")
+    pmColors = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="COLORS")
+    pmTime = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="TIME")
+    statusEmoji = {"Empty":EMOJI_EMPTY,"Assigned":EMOJI_ASSIGNED,"Progress":EMOJI_PROGRESS,"Finished":EMOJI_FINISHED}
+    pmStatus = statusEmoji[datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="STATUS")]
+    pm = pmStatus + " " + pmTime + " - " + pmCreators + " - Colors: " + pmColors + " - Groups: " + pmGroups
+    return pm
+
+def AllPartsMessage(mc):
+    pmf = ""
+    for n in range(1, int(mc[3]) + 1): pmf += PartsMessage(mc[8],n) + "\n"
+    return pmf
+
+async def InitGenerateParts(mc,channel):
+    for n in range(1,int(mc[3]) + 1):
+        newfile("fp-mc/" + mc[8] + "/PART" + str(n) + ".txt")
+        datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt",method="add",newkey="CREATORS",newvalue="[]")
+        datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt", method="add", newkey="PARTTYPES", newvalue="[]")
+        datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt",method="add",newkey="GROUPS",newvalue="None")
+        datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt",method="add",newkey="COLORS",newvalue="None")
+        datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt",method="add",newkey="TIME",newvalue="None")
+        datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt", method="add", newkey="VIDEO", newvalue="None")
+        datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt", method="add", newkey="STATUS", newvalue="Empty")
+    # Assigning Colors
+    apin = True
+    for n in range(1, int(mc[3]) + 1):
+        if apin:
+            datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt",method="change",line="COLORS",newvalue="1-100")
+            apin = False
+        else:
+            datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt",method="change",line="COLORS",newvalue="1-100")
+            apin = True
+    # Assigning Groups
+    if int(mc[3]) < 20:
+        # Group sets: 50 - 100 - 150 - 200
+        apd = int(999.0 / float(int(mc[3]))); apc = 0
+        if apd <= 50: apc = 50
+        elif 100 >= apd >= 50:
+            if 100 - apd > 50 - apd: apc = 100
+            else: apc = 50
+        elif 150 >= apd >= 100:
+            if 150 - apd > 100 - apd: apc = 150
+            else: apc = 100
+        elif 200 >= apd >= 150:
+            if 200 - apd > 150 - apd: apc = 200
+            else: apc = 150
+        apn = 0
+        for n in range(1, int(mc[3]) + 1):
+            if n == 1:
+                datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt", method="change", line="GROUPS",
+                             newvalue="3-" + str(apc)); apn += apc
+            else:
+                datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt", method="change", line="GROUPS",
+                             newvalue=str(int(apn + 1)) + "-" + str(apc)); apn += apc
+    await channel.send(AllPartsMessage(mc[8]))
+
 
 @client.event
 async def on_ready():
@@ -697,9 +779,6 @@ async def host(ctx):
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-PROGRESS",newvalue=str(hostMC_PROGRESSCHANNEL.id))
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-FINISHEDPARTS",newvalue=str(hostMC_FINISHEDPARTSCHANNEL.id))
 
-                        hostMC = Megacollab(name=hostMC_NAME,mcid=hostMC_ID,song=hostMC_SONG,difficulty=hostMC_DIFFICULTY,parts=hostMC_PARTS,cohosts=hostMC_OTHERHOSTS,
-                                            verifier=hostMC_VERIFIER,host=ctx.message.author,server=ctx.message.guild)
-                        MCS.append(hostMC)
                         await ResponseMessage(ctx,"Megacollab Created! (MC ID: " + hostMC_ID + ")\n**Name**: " + hostMC_NAME + \
                                               "\n**Song**: " + hostMC_SONG +
                                               "\n**Difficulty**: " + hostMC_DIFFICULTY +
@@ -740,9 +819,6 @@ async def assignparts(ctx):
 async def ctest(ctx):
     mcc = await MCContext(ctx)
     print(mcc)
-    hostMC = Megacollab(name=mcc[0], mcid=mcc[8], song=mcc[1], difficulty=mcc[2],
-                        parts=mcc[3], cohosts=mcc[4],
-                        verifier=mcc[5], host=mcc[6], server=mcc[7])
-    MCS.append(hostMC)
+
 
 client.run(SECRET)
