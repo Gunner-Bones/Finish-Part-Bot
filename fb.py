@@ -544,14 +544,14 @@ async def ParameterResponseEmbed(ctx,title,parameters: list):
                             paramql[paramql.index(pq)] = pqt
                         paramq[1] = paramql
                     newparameters[newparameters.index(p)][2] = paramq[1]
-                    responseembed.set_field_at(p[4],name=p[0],value=str(paramq[1]))
-                    if p[1] == "discord user": responseembed.set_field_at(p[4],name=p[0],value=paramq[1].name)
+                    responseembed.set_field_at(p[4],name=p[0],value=str(paramq[1]),inline=False)
+                    if p[1] == "discord user": responseembed.set_field_at(p[4],name=p[0],value=paramq[1].name,inline=False)
                     if p[1] == "list of discord users":
                         newparameters[newparameters.index(p)][2] = paramql
                         paramq[1] = []
                         for q in paramql: paramq[1].append(q)
                         for pq in paramq[1]: paramq[1][paramq[1].index(pq)] = pq.name
-                        responseembed.set_field_at(p[4], name=p[0], value=str(paramq[1]))
+                        responseembed.set_field_at(p[4], name=p[0], value=str(paramq[1]),inline=False)
                     return True
         return False
     while True:
@@ -662,8 +662,16 @@ def PartsMessage(mcid,pos):
     pmColors = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="COLORS")
     pmTime = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="TIME")
     pmStatus = statusEmoji[datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="STATUS").lower()]
-    pm = pmStatus + " " + pmTime + " - " + pmCreators + " - Colors: " + pmColors + " - Groups: " + pmGroups
+    pmType = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="PARTDESC")
+    pmNumber = "**Part " + str(pos) + "**"
+    if "art" in pmType.lower(): pmNumber += " [" + pmType + "]"
+    pm = pmStatus + " " + pmTime + " - " + pmCreators + " - Colors: " + pmColors + " - Groups: " + pmGroups + " - " + pmNumber
     return pm
+
+def CheckIfArtPart(mcid,pos):
+    pmType = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt", method="get", line="PARTDESC")
+    if "art" in pmType.lower(): return True
+    return False
 
 def AllPartsMessage(mc):
     pmf = ""
@@ -674,7 +682,7 @@ async def InitGenerateParts(mc,channel):
     for n in range(1,int(mc[3]) + 1):
         newfile("fp-mc/" + mc[8] + "/PART" + str(n) + ".txt")
         datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt",method="add",newkey="CREATORS",newvalue="[]")
-        datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt", method="add", newkey="PARTTYPES", newvalue="[]")
+        datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt", method="add", newkey="PARTDESC", newvalue="None")
         datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt",method="add",newkey="GROUPS",newvalue="None")
         datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt",method="add",newkey="COLORS",newvalue="None")
         datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt",method="add",newkey="TIME",newvalue="0:00-0:00")
@@ -716,6 +724,28 @@ async def RefreshParts(mc):
             partsMessage = await GetMessage(partsChannel,partsMessage)
             if partsMessage is None: continue
             await partsMessage.edit(content=AllPartsMessage(mc))
+
+async def GetPart(ctx,mc,pos):
+    mcid = mc[8]
+    pmCreators = StrToLODU(datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt", method="get", line="CREATORS"))
+    pmGroups = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt", method="get", line="GROUPS")
+    pmColors = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt", method="get", line="COLORS")
+    pmTime = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt", method="get", line="TIME")
+    pmStatus = statusEmoji[datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt", method="get", line="STATUS").lower()]
+    pmType = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt", method="get", line="PARTDESC")
+    pmNumber = "**Part " + str(pos) + "**"
+    pmVideo = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt", method="get", line="VIDEO")
+    if pmVideo.startswith("http"): pmVideo = "[Video](" + pmVideo + ")"
+    else: pmVideo = "No Video"
+    pmE = discord.Embed(title=ctx.author.name + "'s part in " + mc[0],description=pmVideo,color=0x5c5c5c)
+    pmE.add_field(name="Status", value=pmStatus, inline=False)
+    pmE.add_field(name="Creators", value=LODUToStrName(pmCreators), inline=False)
+    pmE.add_field(name="Time", value=pmTime, inline=False)
+    pmE.add_field(name="Description", value=pmType, inline=False)
+    pmE.add_field(name="Position", value=pmNumber, inline=False)
+    pmE.add_field(name="Groups", value=pmGroups, inline=False)
+    pmE.add_field(name="Colors", value=pmColors, inline=False)
+    await ctx.message.channel.send(embed=pmE)
 
 @client.event
 async def on_ready():
@@ -876,10 +906,12 @@ async def configpart(ctx,partnum):
                         partCreators = StrToList(LODUToStrName(StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt",method="get",line="CREATORS"))))
                         partTime = datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt",method="get",line="TIME")
                         partVideo = datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt",method="get",line="VIDEO")
+                        partDesc = datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt",method="get",line="PARTDESC")
                         partR = await ParameterResponseEmbed(ctx,"Edit Part " + str(partnum),[["Creators","list of discord users",partCreators,False],
                                                                                               ["Time","string",partTime,False],
                                                                                               ["Status","string",partStatus,False],
-                                                                                              ["Video","string",partVideo,False]])
+                                                                                              ["Video","string",partVideo,False],
+                                                                                              ["Description","string",partDesc,False]])
                         if not partR: await ResponseMessage(ctx,"","failed","invalidparams")
                         else:
                             dataCreators = LODUToStr(partR[0][2])
@@ -888,10 +920,11 @@ async def configpart(ctx,partnum):
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="TIME", newvalue=partR[1][2])
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="STATUS", newvalue=partR[2][2])
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="VIDEO", newvalue=partR[3][2])
+                            datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="PARTDESC", newvalue=partR[4][2])
                             await RefreshParts(mcc)
                             await ResponseMessage(ctx,"Part config Updated.","success")
                     else:
-                        await ResponseMessage(ctx, "You have not generated Parts yet! *Type ??generateparts in the Parts channel*", "failed")
+                        await ResponseMessage(ctx, "Either this is an Invalid Part, or you have not generated Parts yet!", "failed")
                 else:
                     await ResponseMessage(ctx,"","failed","nothost")
             else:
@@ -900,6 +933,17 @@ async def configpart(ctx,partnum):
             await ResponseMessage(ctx,"","failed","botlacksperms")
     else:
         await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+
+@client.command(pass_context=True)
+async def mypart(ctx):
+    if ctx.guild:
+        mcc = await MCContext(ctx)
+        if mcc is not None:
+            for n in range(1, int(mcc[3]) + 1):
+                mpCreators = StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt",method="get",line="CREATORS"))
+                if ctx.author in mpCreators:
+                    await GetPart(ctx,mcc,str(n))
+
 
 
 @client.command(pass_context=True)
