@@ -1,2 +1,2 @@
-test = []
-if not test: print("y")
+test = None
+if not test: print("a")
