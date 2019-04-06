@@ -1,4 +1,4 @@
-import discord, asyncio, sys, os, urllib.request, json, math, random, ast, datetime, base64, time, copy, pickle, traceback
+import discord, asyncio, sys, os, random, datetime,copy, pickle, traceback
 from discord.ext import commands
 
 Client = discord.Client()
@@ -74,6 +74,7 @@ def alldatakeys(file) -> list:
 
 def latestdata(file):
     ld = alldatakeys(file)
+    if ld == []: return None
     return ld[len(ld) - 1]
 
 def cleardata(file):
@@ -130,6 +131,8 @@ def paramlistlist(p,i):
         if str(n).startswith(" "): params[params.index(n)] = n[1:]
         if n[len(n) - 1] == " ": params[params.index(n)] = n[:len(n) - 1]
     return params
+
+# These classes don't work lol
 
 MCS = []
 
@@ -846,6 +849,10 @@ def Portfolio(user):
 
 async def FinishPart(user,mc):
     await user.send("Finish Part Bot reminds you to Finish your Part in **" + mc[0] + "**!")
+    fpimage = random.choice(os.listdir("goodstuff/"))
+    with open(fpimage,"rb") as fpi:
+        fpfile = discord.File(fp=fpi)
+        await user.send(file=fpfile)
 
 
 @client.event
@@ -861,17 +868,34 @@ async def on_ready():
 async def on_message(message):
     mcc = AutoMCContext(message)
     if mcc is not None:
-        mdt = datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="get",line="TEST")
-        if mdt is None:
-            newfile("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt")
-            datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="add",newkey="TEST",newvalue=str(message.author.id))
-        mdl = latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt")
-        if mdl != "TEST":
-            mdlt = StrToDatetime(mdl); mdt = StrToDatetime(DatetimeToStr(datetime.datetime.now()))
-            if mdt > mdlt:
-                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="remove",line=mdl)
-                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="add",
-                             newkey=DatetimeToStr(mdlt),newvalue=str(message.id))
+        mNotify = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="SETTINGS-NOTIFY")
+        if mNotify.lower() == "true":
+            mdt = datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="get",line="TEST")
+            if mdt is None:
+                newfile("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt")
+                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="add",newkey="TEST",newvalue=str(message.author.id))
+            mdl = latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt")
+            if mdl != "TEST":
+                mdlt = StrToDatetime(mdl); mdt = StrToDatetime(DatetimeToStr(datetime.datetime.now()))
+                if mdt > mdlt:
+                    datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="remove",line=mdl)
+                    datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="add",
+                                 newkey=DatetimeToStr(mdlt),newvalue=str(message.id))
+            mcmd = StrToDatetime(latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/MAIN.txt"))
+            if mcmd + datetime.timedelta(days=5) < datetime.datetime.now():
+                mcmCreators = []
+                for n in range(1, int(mcc[3]) + 1):
+                    nCreators = StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt",method="get",line="CREATORS"))
+                    for c in nCreators:
+                        if c not in mcmCreators: mcmCreators.append(c)
+                for c in mcmCreators:
+                    cdt = latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
+                    if cdt is None: await FinishPart(c,mcc)
+                    else:
+                        cleardata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
+                        datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt",method="add",newkey="TEST",newvalue=str(message.author.id))
+
+
 
 
 @client.command(pass_context=True)
@@ -1189,10 +1213,19 @@ async def editportfolio(ctx):
             await ctx.message.channel.send(embed=Portfolio(ctx.message.author))
 
 @client.command(pass_context=True)
-async def portfolio(ctx):
+async def myportfolio(ctx):
     if datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt", method="get", line="BIO") is None:
         await ResponseMessage(ctx, "You have not made a Portfolio! *Type ??portfolio*", "failed")
     else: await ctx.message.channel.send(embed=Portfolio(ctx.message.author))
+
+@client.command(pass_context=True)
+async def portfolio(ctx,puser):
+    puser = GetMemberGlobal(puser)
+    if puser is not None:
+        if datasettings(file="fp-portfolio/" + str(puser.id) + ".txt", method="get", line="BIO") is None:
+            await ResponseMessage(ctx, "This User has not made a Portfolio!", "failed")
+        else: await ctx.message.channel.send(embed=Portfolio(puser))
+    else: await ResponseMessage(ctx,"Invalid User!","failed")
 
 @client.command(pass_context=True)
 async def openmcs(ctx):
@@ -1278,6 +1311,51 @@ async def mypart(ctx):
     else:
         await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
 
+@client.command(pass_context=True)
+async def submitpart(ctx,part):
+    if ctx.guild:
+        mcc = await MCContext(ctx)
+        if mcc is not None:
+            spt = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="SUBMISSIONPART-" + str(ctx.message.author.id))
+            if spt is None:
+                datasettings(file="fp-mc/" + mcc[8] + ".txt",method="add",newkey="SUBMISSIONPART-" + str(ctx.message.author.id),newvalue=part)
+                await ResponseMessage(ctx,"Part submitted!","success")
+                await mcc[6].send("**" + mcc[6].name + "**, " + ctx.message.author.name + " has submitted a Part for " +
+                                  mcc[0] + ":\n" + part)
+            else:
+                await ResponseMessage(ctx, "You've already submitted your Part!", "failed")
+        else:
+            await ResponseMessage(ctx, "", "failed", "nomc")
+    else:
+        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+
+@client.command(pass_context=True)
+async def partsubmissions(ctx):
+    if ctx.guild:
+        if BotHasPermissions(ctx):
+            mcc = await MCContext(ctx)
+            if mcc is not None:
+                if IsHost(ctx,mcc):
+                    psList = []
+                    for data in alldatakeys("fp-mc/" + mcc[8] + ".txt"):
+                        if data.startswith("SUBMISSIONPART-"):
+                            psP = data.split("-"); psCreator = GetMemberGlobal(psP[1])
+                            if psCreator is None: continue
+                            psPart = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line=data)
+                            psList.append([psCreator,psPart])
+                    psM = "All Part submissions for **" + mcc[0] + "**:\n"; psn = 1
+                    for ps in psList:
+                        psM += "[" + str(psn) + "] " + ps[0] + " - " + ps[1] + "\n"
+                        psn += 1
+                    await ResponseMessage(ctx,psM,"success")
+                else:
+                    await ResponseMessage(ctx,"","failed","nothost")
+            else:
+                await ResponseMessage(ctx,"","failed","nomc")
+        else:
+            await ResponseMessage(ctx,"","failed","botlacksperms")
+    else:
+        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
 
 
 @client.command(pass_context=True)
