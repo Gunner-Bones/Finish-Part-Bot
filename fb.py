@@ -12,6 +12,8 @@ sl = []
 for l in s: sl.append(l.replace("\n",""))
 SECRET = sl[0]
 
+# https://discordapp.com/api/oauth2/authorize?client_id=558890112855834624&permissions=0&scope=bot
+
 CHAR_SUCCESS = "✅"
 CHAR_FAILED = "❌"
 CHAR_CONFIRM = "✔"
@@ -425,6 +427,7 @@ def GetChannel(s,cn):
 def GetGuild(sid):
     for guild in client.guilds:
         if str(guild.id) == str(sid): return guild
+        if sid in guild.name: return guild
     return None
 
 async def GetMessage(channel,mid):
@@ -624,7 +627,7 @@ async def MCContext(ctx):
         if 1 <= mcmresponse <= 5: return mcsfound[mcmresponse - 1]
         else: return None
 
-async def AutoMCContext(message):
+def AutoMCContext(message):
     """
     0: Name
     1: Song
@@ -864,6 +867,7 @@ async def on_ready():
         if server is not None: sl += server.name + ", "
     print("Connected Guilds: " + sl[:len(sl) - 2])
 
+"""
 @client.event
 async def on_message(message):
     mcc = AutoMCContext(message)
@@ -894,7 +898,7 @@ async def on_message(message):
                     else:
                         cleardata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
                         datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt",method="add",newkey="TEST",newvalue=str(message.author.id))
-
+"""
 
 
 
@@ -948,7 +952,7 @@ async def host(ctx):
                         newfile("fp-mc/" + hostMC_ID + "/ACTIVITYLOG/MAIN.txt")
                         datasettings(file="fp-mc/" + hostMC_ID + "/ACTIVITYLOG/MAIN.txt",method="add",newkey=DatetimeToStr(datetime.datetime.now()),newvalue="MC CREATED")
                         mcw = hostMC_NAME + ";" + hostMC_SONG + ";" + hostMC_DIFFICULTY + ";" + \
-                            str(hostMC_PARTS) + ";" + str(mcohid) + ";" + mcv + ";" + \
+                            str(hostMC_PARTS) + ";" + str(mcohid) + ";" + str(mcv) + ";" + \
                               str(ctx.message.author.id) + ";" + str(ctx.message.guild.id)
                         datasettings(file="fp-mcdir.txt",method="add",newkey=hostMC_ID,newvalue=mcw)
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt",method="add",newkey="NAME",newvalue=hostMC_NAME)
@@ -956,7 +960,7 @@ async def host(ctx):
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt",method="add",newkey="DIFFICULTY",newvalue=hostMC_DIFFICULTY)
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="PARTS", newvalue=str(hostMC_PARTS))
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="OTHERHOSTS", newvalue=str(mcohid))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="VERIFIER",newvalue=mcv)
+                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="VERIFIER",newvalue=str(mcv))
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="OWNER", newvalue=str(ctx.message.author.id))
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="SERVER", newvalue=str(ctx.message.guild.id))
                         hostMC_HOSTROLE = await ctx.message.guild.create_role(name=hostMC_NAME + " Host",color=RandomColor(),mentionable=True,hoist=True)
@@ -1132,11 +1136,11 @@ async def mcinvitesallow(ctx,iaserver):
                 if IsHost(ctx,mcc):
                     iaInvites = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="SETTINGS-INVITING")
                     if iaInvites.lower() == "true":
-                        iaserver = GetGuild(iaserver)
-                        if iaserver is not None:
-                            tia = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line=str(iaserver.id))
+                        iag = GetGuild(iaserver)
+                        if iag is not None:
+                            tia = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line=str(iag.id))
                             if tia is None:
-                                datasettings(file="fp-mc/" + mcc[8] + ".txt",method="add",newkey=str(iaserver.id),newvalue="ALLOWEDSERVER")
+                                datasettings(file="fp-mc/" + mcc[8] + ".txt",method="add",newkey=str(iag.id),newvalue="ALLOWEDSERVER")
                                 await ResponseMessage(ctx, "Server added to Allowed list for Invites!","success")
                             else:
                                 await ResponseMessage(ctx, "Server already Allowed!", "failed")
@@ -1162,11 +1166,11 @@ async def mcinvitesunallow(ctx,iaserver):
                 if IsHost(ctx,mcc):
                     iaInvites = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="SETTINGS-INVITING")
                     if iaInvites.lower() == "true":
-                        iaserver = GetGuild(iaserver)
-                        if iaserver is not None:
-                            tia = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line=str(iaserver.id))
+                        iag = GetGuild(iaserver)
+                        if iag is not None:
+                            tia = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line=str(iag.id))
                             if tia is not None:
-                                datasettings(file="fp-mc/" + mcc[8] + ".txt",method="remove",line=str(iaserver.id))
+                                datasettings(file="fp-mc/" + mcc[8] + ".txt",method="remove",line=str(iag.id))
                                 await ResponseMessage(ctx, "Server remvoved from Allowed list for Invites!","success")
                             else:
                                 await ResponseMessage(ctx, "Server not already ALlowed!", "failed")
@@ -1215,7 +1219,7 @@ async def editportfolio(ctx):
 @client.command(pass_context=True)
 async def myportfolio(ctx):
     if datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt", method="get", line="BIO") is None:
-        await ResponseMessage(ctx, "You have not made a Portfolio! *Type ??portfolio*", "failed")
+        await ResponseMessage(ctx, "You have not made a Portfolio! *Type ??editportfolio*", "failed")
     else: await ctx.message.channel.send(embed=Portfolio(ctx.message.author))
 
 @client.command(pass_context=True)
@@ -1251,7 +1255,7 @@ async def openmcs(ctx):
                 mcd.append(mcid)
                 mcpo = 0
                 for n in range(1, int(mcd[3]) + 1):
-                    mcpStatus = datasettings(file="fp-mc/" + mcid + "/PART" + str(n) + ".txt",method="get",line="Status")
+                    mcpStatus = datasettings(file="fp-mc/" + mcid + "/PART" + str(n) + ".txt",method="get",line="STATUS")
                     if mcpStatus.lower() == "empty": mcpo += 1
                 if mcpo > 0:
                     mcd.append(mcpo)
@@ -1294,7 +1298,7 @@ async def openmcs(ctx):
         else:
             await ResponseMessage(ctx,"There are no Open MCs for you right now! :(","failed")
     else:
-        await ResponseMessage(ctx,"You need to create a Portfolio first! *Type ??portfolio*","failed")
+        await ResponseMessage(ctx,"You need to create a Portfolio first! *Type ??editportfolio*","failed")
 
 
 @client.command(pass_context=True)
