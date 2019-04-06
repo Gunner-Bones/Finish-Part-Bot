@@ -72,6 +72,10 @@ def alldatakeys(file) -> list:
         if nl == "": sl.remove(nl)
     return sl
 
+def latestdata(file):
+    ld = alldatakeys(file)
+    return ld[len(ld) - 1]
+
 def cleardata(file):
     s = None
     try: s = open(file,"w")
@@ -490,7 +494,7 @@ def PREListCompare(parameters,newparameters):
 async def ParameterResponseEmbed(ctx,title,parameters: list):
     global newparameters; global responsedonecalled
     # parameters: [['name','string',"",True],['parts','integer',0,True],['creators','list',[],False]]
-    # param types: string, integer, list, discord user, list of discord users
+    # param types: string, integer, list, discord user, list of discord users, boolean
     if len(parameters) == 0: return []
     newparameters = copy.deepcopy(parameters)
     responseembed = discord.Embed(title=title,description=
@@ -500,6 +504,7 @@ async def ParameterResponseEmbed(ctx,title,parameters: list):
         if param[3]: paramr = " *"
         paramvalue = ""
         if param[1] == "string": paramvalue = param[2]
+        if param[1] == "boolean": paramvalue = param[2]
         if param[1] == "integer": paramvalue = str(param[2])
         if param[1] == "list":
             if not param[2]: paramvalue = "None"
@@ -531,6 +536,8 @@ async def ParameterResponseEmbed(ctx,title,parameters: list):
             for p in newparameters:
                 if str(p[0]).lower() == str(paramq[0]).lower():
                     paramql = []
+                    if p[1] == "boolean":
+                        if paramq[1].lower() != "false" and paramq[1].lower() != "true": return False
                     if p[1] == "list": paramq[1] = paramlistlist(paramresponse,1)
                     if p[1] == "discord user":
                         paramq[1] = GetMemberGlobal(paramq[1])
@@ -614,6 +621,51 @@ async def MCContext(ctx):
         if 1 <= mcmresponse <= 5: return mcsfound[mcmresponse - 1]
         else: return None
 
+async def AutoMCContext(message):
+    """
+    0: Name
+    1: Song
+    2: Difficulty
+    3: Parts
+    4: Co-Hosts
+    5: Verifier
+    6: Host
+    7: Server
+    8: ID
+    """
+    mcsfound = []
+    for mcid in alldatakeys("fp-mcdir.txt"):
+        mcd = datasettings(file="fp-mcdir.txt",method="get",line=mcid); mcd = mcd.split(";")
+        mcd.append(mcid)
+        mchost = GetMemberGlobal(mcd[6]); mcserver = GetGuild(mcd[7])
+        if mchost is None: continue
+        if mcserver is None: continue
+        mcd[6] = mchost; mcd[7] = mcserver
+        mcd[4] = GetMemberGlobal(mcd[4]); mcd[5] = StrToLODU(mcd[5])
+        if mchost == message.author and mcserver == message.guild: mcsfound.append(mcd)
+    if not mcsfound: return None
+    if len(mcsfound) == 1: return mcsfound[0]
+    else:
+        for mcc in mcsfound:
+            msChannelParts = GetChannel(message.guild,
+                                        datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="CHANNEL-PARTS"))
+            msChannelUpdates = GetChannel(message.guild, datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
+                                                                          line="CHANNEL-UPDATES"))
+            msChannelProgress = GetChannel(message.guild, datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
+                                                                           line="CHANNEL-PROGRESS"))
+            msChannelFinishedParts = GetChannel(message.guild,
+                                                datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
+                                                             line="CHANNEL-FINISHEDPARTS"))
+            if msChannelParts is not None:
+                if message.channel == msChannelParts: return mcc
+            if msChannelUpdates is not None:
+                if message.channel == msChannelUpdates: return mcc
+            if msChannelFinishedParts is not None:
+                if message.channel == msChannelFinishedParts: return mcc
+            if msChannelProgress is not None:
+                if message.channel == msChannelProgress: return mcc
+        return None
+
 def StrToLODU(st):
     if st == "[]": return []
     stm = st.replace("[","").replace("]",""); stm = stm.split(",")
@@ -650,6 +702,17 @@ def LODUToStrName(l):
         except: pass
         l[l.index(du)] = dus
     return str(l).replace("[","").replace("]","").replace("'","")
+
+def StrToDatetime(st):
+    stm = st
+    try: stm = stm.split(" "); stm = stm[0]
+    except: pass
+    stm = stm.split("-")
+    return datetime.datetime(day=int(stm[2]),month=int(stm[1]),year=int(stm[0]))
+
+def DatetimeToStr(dt):
+    dtm = str(dt).split(" ")
+    return dtm[0]
 
 
 def IsHost(ctx,mc):
@@ -747,6 +810,44 @@ async def GetPart(ctx,mc,pos):
     pmE.add_field(name="Colors", value=pmColors, inline=False)
     await ctx.message.channel.send(embed=pmE)
 
+
+def Portfolio(user):
+    pBio = datasettings(file="fp-portfolio/" + str(user.id) + ".txt",method="get",line="BIO")
+    if pBio is None: return None
+    pVideo1 = datasettings(file="fp-portfolio/" + str(user.id) + ".txt",method="get",line="VIDEO1")
+    pVideo2 = datasettings(file="fp-portfolio/" + str(user.id) + ".txt",method="get",line="VIDEO2")
+    pServers = ""
+    for guild in client.guilds:
+        for member in guild.members:
+            if str(member.id) == str(user.id): pServers += guild.name + ", "
+    if pServers != "": pServers = pServers[:len(pServers) - 2]
+    else: pServers = "None that the Bot is in"
+    pMCS = ""
+    for mcid in alldatakeys("fp-mcdir.txt"):
+        mcd = datasettings(file="fp-mcdir.txt",method="get",line=mcid); mcd = mcd.split(";")
+        mcpt = datasettings(file="fp-mc/" + mcid + "/PART1.txt",method="get",line="CREATORS")
+        if mcpt is None: continue
+        for n in range(1, int(mcd[3]) + 1):
+            mcCreators = StrToLODU(datasettings(file="fp-mc/" + mcid + "/PART" + str(n) + ".txt",method="get",line="CREATORS"))
+            if user in mcCreators:
+                pMCS += mcd[0] + ", "
+                break
+    if pMCS != "": pMCS = pMCS[:len(pMCS) - 2]
+    else: pMCS = "None that the Bot is hosting"
+    pE = discord.Embed(title=user.name,description=pBio,color=0x5c5c5c)
+    pVideos = ""
+    if pVideo1 != "None": pVideos += "[Video](" + pVideo1 + ") "
+    if pVideo2 != "None": pVideos += "[Video](" + pVideo2 + ") "
+    if pVideos != "": pE.add_field(name="Video(s) of Work",value=pVideos,inline=False)
+    pE.add_field(name="Servers",value=pServers,inline=False)
+    pE.add_field(name="Megacollabs",value=pMCS,inline=False)
+    pE.add_field(name="Contact",value=user.name + "#" + str(user.discriminator),inline=False)
+    return pE
+
+async def FinishPart(user,mc):
+    await user.send("Finish Part Bot reminds you to Finish your Part in **" + mc[0] + "**!")
+
+
 @client.event
 async def on_ready():
     print("Bot Ready!")
@@ -755,6 +856,22 @@ async def on_ready():
     for server in client.guilds:
         if server is not None: sl += server.name + ", "
     print("Connected Guilds: " + sl[:len(sl) - 2])
+
+@client.event
+async def on_message(message):
+    mcc = AutoMCContext(message)
+    if mcc is not None:
+        mdt = datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="get",line="TEST")
+        if mdt is None:
+            newfile("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt")
+            datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="add",newkey="TEST",newvalue=str(message.author.id))
+        mdl = latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt")
+        if mdl != "TEST":
+            mdlt = StrToDatetime(mdl); mdt = StrToDatetime(DatetimeToStr(datetime.datetime.now()))
+            if mdt > mdlt:
+                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="remove",line=mdl)
+                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="add",
+                             newkey=DatetimeToStr(mdlt),newvalue=str(message.id))
 
 
 @client.command(pass_context=True)
@@ -803,6 +920,9 @@ async def host(ctx):
                             if mcid == hostMC_ID: hostMC_ID = str(random.randint(10000,99999))
                         newfile("fp-mc/" + hostMC_ID + ".txt")
                         os.mkdir("fp-mc/" + hostMC_ID)
+                        os.mkdir("fp-mc/" + hostMC_ID + "/ACTIVITYLOG")
+                        newfile("fp-mc/" + hostMC_ID + "/ACTIVITYLOG/MAIN.txt")
+                        datasettings(file="fp-mc/" + hostMC_ID + "/ACTIVITYLOG/MAIN.txt",method="add",newkey=DatetimeToStr(datetime.datetime.now()),newvalue="MC CREATED")
                         mcw = hostMC_NAME + ";" + hostMC_SONG + ";" + hostMC_DIFFICULTY + ";" + \
                             str(hostMC_PARTS) + ";" + str(mcohid) + ";" + mcv + ";" + \
                               str(ctx.message.author.id) + ";" + str(ctx.message.guild.id)
@@ -850,6 +970,10 @@ async def host(ctx):
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-UPDATES",newvalue=str(hostMC_UPDATESCHANNEL.id))
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-PROGRESS",newvalue=str(hostMC_PROGRESSCHANNEL.id))
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-FINISHEDPARTS",newvalue=str(hostMC_FINISHEDPARTSCHANNEL.id))
+
+                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="SETTINGS-VISIBILITY", newvalue="True")
+                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="SETTINGS-INVITING", newvalue="True")
+                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="SETTINGS-NOTIFY", newvalue="True")
 
                         await ResponseMessage(ctx,"Megacollab Created! (MC ID: " + hostMC_ID + ")\n**Name**: " + hostMC_NAME + \
                                               "\n**Song**: " + hostMC_SONG +
@@ -934,6 +1058,212 @@ async def configpart(ctx,partnum):
     else:
         await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
 
+
+
+@client.command(pass_context=True)
+async def mcsettings(ctx):
+    if ctx.guild:
+        if BotHasPermissions(ctx):
+            mcc = await MCContext(ctx)
+            if mcc is not None:
+                if IsHost(ctx,mcc):
+                    msVisibility = datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="SETTINGS-VISIBILITY")
+                    msInviting = datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="SETTINGS-INVITING")
+                    msNotify = datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="SETTINGS-NOTIFY")
+                    msR = await ParameterResponseEmbed(ctx,"Megacollab Settings for " + mcc[0],[["Channels are Visibile to Everyone","boolean",msVisibility,False],
+                                                                                                ["Creators can find this MC if Parts are Open","boolean",msInviting,False],
+                                                                                                ["Slacking Creators are notified to Finish Parts","boolean",msNotify,False]])
+                    if not msR: await ResponseMessage(ctx, "", "failed", "invalidparams")
+                    else:
+                        msVisibility = msR[0][2]
+                        datasettings(file="fp-mc/" + mcc[8] + ".txt", method="change", line="SETTINGS-VISIBILITY", newvalue=msVisibility)
+                        msChannelParts = GetChannel(ctx.message.guild,datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="CHANNEL-PARTS"))
+                        msChannelUpdates = GetChannel(ctx.message.guild,datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="CHANNEL-UPDATES"))
+                        msChannelProgress = GetChannel(ctx.message.guild,datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="CHANNEL-PROGRESS"))
+                        msChannelFinishedParts = GetChannel(ctx.message.guild,datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="CHANNEL-FINISHEDPARTS"))
+                        mso = discord.PermissionOverwrite(read_messages=False)
+                        if msVisibility.lower() == "true": mso = discord.PermissionOverwrite(read_messages=True)
+                        if msChannelParts is not None: await msChannelParts.set_permissions(ctx.message.guild.default_role, mso)
+                        if msChannelUpdates is not None: await msChannelUpdates.set_permissions(ctx.message.guild.default_role, mso)
+                        if msChannelProgress is not None: await msChannelProgress.set_permissions(ctx.message.guild.default_role, mso)
+                        if msChannelFinishedParts is not None: await msChannelFinishedParts.set_permissions(ctx.message.guild.default_role, mso)
+                        datasettings(file="fp-mc/" + mcc[8] + ".txt", method="change", line="SETTINGS-INVITING", newvalue=msR[1][2])
+                        datasettings(file="fp-mc/" + mcc[8] + ".txt", method="change", line="SETTINGS-NOTIFY", newvalue=msR[2][2])
+                else:
+                    await ResponseMessage(ctx,"","failed","nothost")
+            else:
+                await ResponseMessage(ctx,"","failed","nomc")
+        else:
+            await ResponseMessage(ctx,"","failed","botlacksperms")
+    else:
+        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+
+
+@client.command(pass_context=True)
+async def mcinvitesallow(ctx,iaserver):
+    if ctx.guild:
+        if BotHasPermissions(ctx):
+            mcc = await MCContext(ctx)
+            if mcc is not None:
+                if IsHost(ctx,mcc):
+                    iaInvites = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="SETTINGS-INVITING")
+                    if iaInvites.lower() == "true":
+                        iaserver = GetGuild(iaserver)
+                        if iaserver is not None:
+                            tia = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line=str(iaserver.id))
+                            if tia is None:
+                                datasettings(file="fp-mc/" + mcc[8] + ".txt",method="add",newkey=str(iaserver.id),newvalue="ALLOWEDSERVER")
+                                await ResponseMessage(ctx, "Server added to Allowed list for Invites!","success")
+                            else:
+                                await ResponseMessage(ctx, "Server already Allowed!", "failed")
+                        else:
+                            await ResponseMessage(ctx, "Invalid Server!", "failed")
+                    else:
+                        await ResponseMessage(ctx,"Open MC Invites are not Allowed! *Type ??mcsettings to change this*")
+                else:
+                    await ResponseMessage(ctx,"","failed","nothost")
+            else:
+                await ResponseMessage(ctx,"","failed","nomc")
+        else:
+            await ResponseMessage(ctx,"","failed","botlacksperms")
+    else:
+        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+
+@client.command(pass_context=True)
+async def mcinvitesunallow(ctx,iaserver):
+    if ctx.guild:
+        if BotHasPermissions(ctx):
+            mcc = await MCContext(ctx)
+            if mcc is not None:
+                if IsHost(ctx,mcc):
+                    iaInvites = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="SETTINGS-INVITING")
+                    if iaInvites.lower() == "true":
+                        iaserver = GetGuild(iaserver)
+                        if iaserver is not None:
+                            tia = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line=str(iaserver.id))
+                            if tia is not None:
+                                datasettings(file="fp-mc/" + mcc[8] + ".txt",method="remove",line=str(iaserver.id))
+                                await ResponseMessage(ctx, "Server remvoved from Allowed list for Invites!","success")
+                            else:
+                                await ResponseMessage(ctx, "Server not already ALlowed!", "failed")
+                        else:
+                            await ResponseMessage(ctx, "Invalid Server!", "failed")
+                    else:
+                        await ResponseMessage(ctx,"Open MC Invites are not Allowed! *Type ??mcsettings to change this*")
+                else:
+                    await ResponseMessage(ctx,"","failed","nothost")
+            else:
+                await ResponseMessage(ctx,"","failed","nomc")
+        else:
+            await ResponseMessage(ctx,"","failed","botlacksperms")
+    else:
+        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+
+BIOLIMIT = 140
+
+@client.command(pass_context=True)
+async def editportfolio(ctx):
+    global BIOLIMIT
+    if datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt",method="get",line="BIO") is None:
+        newfile("fp-portfolio/" + str(ctx.message.author.id) + ".txt")
+        datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt", method="add", newkey="BIO", newvalue="None")
+        datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt", method="add", newkey="VIDEO1", newvalue="None")
+        datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt", method="add", newkey="VIDEO2", newvalue="None")
+    pfBio = datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt", method="get", line="BIO")
+    pfVideo1 = datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt", method="get", line="VIDEO1")
+    pfVideo2 = datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt", method="get", line="VIDEO2")
+    pfR = await ParameterResponseEmbed(ctx,ctx.message.author.name + "'s Portfolio",[["Short Bio","string",pfBio,False],
+                                                                                     ["Video #1","string",pfVideo1,False],
+                                                                                     ["Video #2","string",pfVideo2,False]])
+    if pfR is None: await ResponseMessage(ctx, "", "failed", "invalidparams")
+    else:
+        pfBio = pfR[0][2]
+        if len(pfBio) > BIOLIMIT:
+            await ResponseMessage(ctx,"Your \"Short Bio\" is not short at all! Keep your Bio short and concise, under "
+                                  + str(BIOLIMIT) + " characters, for the MC Hosts' sakes.","failed")
+        else:
+            datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt",method="change",line="BIO",newvalue=pfBio)
+            datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt",method="change",line="VIDEO1",newvalue=pfR[1][2])
+            datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt",method="change",line="VIDEO2",newvalue=pfR[2][2])
+            await ResponseMessage(ctx,"Portfolio updated!","success")
+            await ctx.message.channel.send(embed=Portfolio(ctx.message.author))
+
+@client.command(pass_context=True)
+async def portfolio(ctx):
+    if datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt", method="get", line="BIO") is None:
+        await ResponseMessage(ctx, "You have not made a Portfolio! *Type ??portfolio*", "failed")
+    else: await ctx.message.channel.send(embed=Portfolio(ctx.message.author))
+
+@client.command(pass_context=True)
+async def openmcs(ctx):
+    if datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt", method="get", line="BIO") is not None:
+        omc = []
+        for mcid in alldatakeys("fp-mcdir.txt"):
+            mcd = datasettings(file="fp-mcdir.txt",method="get",line=mcid); mcd = mcd.split(";")
+            mcInviting = datasettings(file="fp-mc/" + mcid + ".txt",method="get",line="SETTINGS-INVITING")
+            if mcInviting.lower() == "false": continue
+            mcsRequired = []
+            for mcsdata in alldatakeys("fp-mc/" + mcid + ".txt"):
+                if datasettings(file="fp-mc/" + mcid + ".txt",method="get",line=mcsdata) == "ALLOWEDSERVER":
+                    mcsServer = GetGuild(mcsdata)
+                    if mcsServer is None: continue
+                    else: mcsRequired.append(mcsServer)
+            mcSRM = False
+            if len(mcsRequired) == 0: mcSRM = True
+            else:
+                for mcs in mcsRequired:
+                    for member in mcs.members:
+                        if str(member.id) == str(ctx.message.author.id): mcSRM = True; break
+            if mcSRM:
+                mcd.append(mcid)
+                mcpo = 0
+                for n in range(1, int(mcd[3]) + 1):
+                    mcpStatus = datasettings(file="fp-mc/" + mcid + "/PART" + str(n) + ".txt",method="get",line="Status")
+                    if mcpStatus.lower() == "empty": mcpo += 1
+                if mcpo > 0:
+                    mcd.append(mcpo)
+                    omc.append(mcd)
+        if len(omc) > 0:
+            if len(omc) > 5:
+                nomc = []
+                for m in range(1,6):
+                    while True:
+                        smc = omc[random.randint(0,len(omc) - 1)]
+                        if smc not in nomc: nomc.append(smc); break
+                omc = nomc
+            omm = "Here are some MC(s) with open Parts! Which sounds interesting?\n"
+            omll = "A"; omln = 1; omlm = ""; omlk = {1:"A",2:"B",3:"C",4:"D",5:"E"}
+            for mc in omc:
+                omlm += "**" + omll + "** - " + mc[0] + " by " + GetMemberGlobal(mc[6]).name + "\n"
+                omln += 1
+                omll = omlk[omln]
+            omMessage = await ctx.message.channel.send(omm + omlm)
+            omRR = await ReactionChoiceMessage(ctx,omMessage,len(omc))
+            await omMessage.clear_reactions()
+            if omRR != 0 and omRR != 7:
+                omCMC = []
+                if len(omc) == 1 and omRR == 6: omCMC = omc[0]
+                else: omCMC = omc[omRR - 1]
+                omHostNote = await ParameterResponseEmbed(ctx,"Send a Message to the Host with your request to join "
+                                                          + omCMC[0] + "?",[["Optional Message","string","No Message Set",False]])
+                if omHostNote is None: ResponseMessage(ctx,"","failed","invalidparams")
+                else:
+                    omHost = GetMemberGlobal(mc[6])
+                    omHostMessage = "**" + omHost.name + "**, " + ctx.message.author.name + \
+                                    " would like to join your Megacollab *" + omCMC[0] + "*!\n"
+                    omHostNR = omHostNote[0][2]
+                    if omHostNR != "No Message Set": omHostMessage += "Message from " + ctx.message.author.name + ": " \
+                                                                      + omHostNR + "\n"
+                    await omHost.send(omHostMessage)
+                    await omHost.send(embed=Portfolio(ctx.message.author))
+                    await ResponseMessage(ctx,"Request to Join sent!","success")
+
+        else:
+            await ResponseMessage(ctx,"There are no Open MCs for you right now! :(","failed")
+    else:
+        await ResponseMessage(ctx,"You need to create a Portfolio first! *Type ??portfolio*","failed")
+
+
 @client.command(pass_context=True)
 async def mypart(ctx):
     if ctx.guild:
@@ -943,6 +1273,10 @@ async def mypart(ctx):
                 mpCreators = StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt",method="get",line="CREATORS"))
                 if ctx.author in mpCreators:
                     await GetPart(ctx,mcc,str(n))
+        else:
+            await ResponseMessage(ctx, "", "failed", "nomc")
+    else:
+        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
 
 
 

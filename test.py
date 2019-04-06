@@ -1,2 +1,2 @@
-test = None
-if not test: print("a")
+test = "wefew"
+print(test.index(" "))
