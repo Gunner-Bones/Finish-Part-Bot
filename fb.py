@@ -1,4 +1,4 @@
-import discord, asyncio, sys, os, random, datetime,copy, pickle, traceback
+import discord, asyncio, sys, os, random, datetime,copy, pickle, traceback, shutil
 from discord.ext import commands
 
 Client = discord.Client()
@@ -413,7 +413,9 @@ def GetRole(s,rn):
     try:
         rid = int(rn)
         return discord.utils.find(lambda r: str(rid) in str(r.id), s.roles)
-    except: return discord.utils.find(lambda r: rn.lower() in r.name.lower(), s.roles)
+    except:
+        try: return discord.utils.find(lambda r: rn.lower() in r.name.lower(), s.roles)
+        except: return None
 
 def GetChannel(s,cn):
     if str(cn).startswith("<#"):
@@ -627,7 +629,7 @@ async def MCContext(ctx):
         if 1 <= mcmresponse <= 5: return mcsfound[mcmresponse - 1]
         else: return None
 
-def AutoMCContext(message):
+def AutoMCContext(channel,user):
     """
     0: Name
     1: Song
@@ -648,28 +650,28 @@ def AutoMCContext(message):
         if mcserver is None: continue
         mcd[6] = mchost; mcd[7] = mcserver
         mcd[4] = GetMemberGlobal(mcd[4]); mcd[5] = StrToLODU(mcd[5])
-        if mchost == message.author and mcserver == message.guild: mcsfound.append(mcd)
+        if mchost == user and mcserver == channel.guild: mcsfound.append(mcd)
     if not mcsfound: return None
     if len(mcsfound) == 1: return mcsfound[0]
     else:
         for mcc in mcsfound:
-            msChannelParts = GetChannel(message.guild,
+            msChannelParts = GetChannel(channel.guild,
                                         datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="CHANNEL-PARTS"))
-            msChannelUpdates = GetChannel(message.guild, datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
+            msChannelUpdates = GetChannel(channel.guild, datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
                                                                           line="CHANNEL-UPDATES"))
-            msChannelProgress = GetChannel(message.guild, datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
+            msChannelProgress = GetChannel(channel.guild, datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
                                                                            line="CHANNEL-PROGRESS"))
-            msChannelFinishedParts = GetChannel(message.guild,
+            msChannelFinishedParts = GetChannel(channel.guild,
                                                 datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
                                                              line="CHANNEL-FINISHEDPARTS"))
             if msChannelParts is not None:
-                if message.channel == msChannelParts: return mcc
+                if channel == msChannelParts: return mcc
             if msChannelUpdates is not None:
-                if message.channel == msChannelUpdates: return mcc
+                if channel == msChannelUpdates: return mcc
             if msChannelFinishedParts is not None:
-                if message.channel == msChannelFinishedParts: return mcc
+                if channel == msChannelFinishedParts: return mcc
             if msChannelProgress is not None:
-                if message.channel == msChannelProgress: return mcc
+                if channel == msChannelProgress: return mcc
         return None
 
 def StrToLODU(st):
@@ -857,6 +859,13 @@ async def FinishPart(user,mc):
         fpfile = discord.File(fp=fpi)
         await user.send(file=fpfile)
 
+async def Update(mcc,mes):
+    uChannel = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="CHANNEL-UPDATES")
+    if uChannel is None: return None
+    uChannel = GetChannel(GetGuild(mcc[7]),uChannel)
+    if uChannel is None: return None
+    await uChannel.send("[" + DatetimeToStr(datetime.datetime.now()) + "] " + mes)
+
 
 @client.event
 async def on_ready():
@@ -867,24 +876,24 @@ async def on_ready():
         if server is not None: sl += server.name + ", "
     print("Connected Guilds: " + sl[:len(sl) - 2])
 
-"""
+
 @client.event
-async def on_message(message):
-    mcc = AutoMCContext(message)
+async def on_typing(channel,user,when):
+    mcc = AutoMCContext(channel,user)
     if mcc is not None:
         mNotify = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="SETTINGS-NOTIFY")
         if mNotify.lower() == "true":
-            mdt = datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="get",line="TEST")
+            mdt = datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt",method="get",line="TEST")
             if mdt is None:
-                newfile("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt")
-                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="add",newkey="TEST",newvalue=str(message.author.id))
-            mdl = latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt")
+                newfile("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt")
+                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt",method="add",newkey="TEST",newvalue=str(user.id))
+            mdl = latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt")
             if mdl != "TEST":
                 mdlt = StrToDatetime(mdl); mdt = StrToDatetime(DatetimeToStr(datetime.datetime.now()))
                 if mdt > mdlt:
-                    datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="remove",line=mdl)
-                    datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(message.author.id) + ".txt",method="add",
-                                 newkey=DatetimeToStr(mdlt),newvalue=str(message.id))
+                    datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt",method="remove",line=mdl)
+                    datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt",method="add",
+                                 newkey=DatetimeToStr(mdlt),newvalue=str(channel.id))
             mcmd = StrToDatetime(latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/MAIN.txt"))
             if mcmd + datetime.timedelta(days=5) < datetime.datetime.now():
                 mcmCreators = []
@@ -897,8 +906,8 @@ async def on_message(message):
                     if cdt is None: await FinishPart(c,mcc)
                     else:
                         cleardata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
-                        datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt",method="add",newkey="TEST",newvalue=str(message.author.id))
-"""
+                        datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt",method="add",newkey="TEST",newvalue=str(user.id))
+
 
 
 
@@ -987,9 +996,9 @@ async def host(ctx):
                         }
                         hostMC_PROGRESSCHANNEL = await ctx.message.guild.create_text_channel(name="progress",category=hostMC_CC,overwrites=channelcreatoro)
                         hostMC_FINISHEDPARTSCHANNEL = await ctx.message.guild.create_text_channel(name="finished-parts",category=hostMC_CC,overwrites=channelcreatoro)
-                        datasettings(file="fp-mc/" + hostMC_ID, method="add", newkey="ROLE-HOST", newvalue=str(hostMC_HOSTROLE.id))
+                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-HOST", newvalue=str(hostMC_HOSTROLE.id))
                         if hostMC_OTHERHOSTS:
-                            datasettings(file="fp-mc/" + hostMC_ID, method="add", newkey="ROLE-COHOST", newvalue=str(hostMC_COHOSTROLE.id))
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-COHOST", newvalue=str(hostMC_COHOSTROLE.id))
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-CREATOR", newvalue=str(hostMC_CREATORROLE.id))
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-VERIFIER", newvalue=str(hostMC_VERIFIERROLE.id))
                         datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-FINISHED", newvalue=str(hostMC_FINISHROLE.id))
@@ -1022,6 +1031,93 @@ async def host(ctx):
             await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
     else:
         await ResponseMessage(ctx,"","failed","authorlacksperms")
+
+@client.command(pass_context=True)
+async def transferhost(ctx,tuser):
+    if ctx.guild:
+        if BotHasPermissions(ctx):
+            mcc = await MCContext(ctx)
+            if mcc is not None:
+                if IsHost(ctx,mcc):
+                    tuser = GetMemberGlobal(tuser)
+                    if tuser is not None:
+                        thMessage = await ctx.message.channel.send("**" + ctx.message.author.name +
+                                                                   "**, are you sure you want to transfer Host to " + tuser.name +
+                                                                   "?\n**A** - Yes\n**B** - No")
+                        thR = await ReactionChoiceMessage(ctx,thMessage,2)
+                        await thMessage.clear_reactions()
+                        if thR == 1:
+                            thHostRole = GetRole(ctx.message.guild,datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="ROLE-HOST"))
+                            await ctx.author.remove_roles(thHostRole)
+                            await tuser.add_roles(thHostRole)
+                            await ResponseMessage(ctx,tuser.name + " is now the Host of " + mcc[0] + "!","success")
+                    else:
+                        await ResponseMessage(ctx,"Invalid User!","failed")
+
+                else:
+                    await ResponseMessage(ctx,"","failed","nothost")
+            else:
+                await ResponseMessage(ctx,"","failed","nomc")
+        else:
+            await ResponseMessage(ctx,"","failed","botlacksperms")
+    else:
+        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+
+@client.command(pass_context=True)
+async def disbandmc(ctx):
+    if ctx.guild:
+        if BotHasPermissions(ctx):
+            mcc = await MCContext(ctx)
+            if mcc is not None:
+                if IsHost(ctx,mcc):
+                    dmMessage1 = await ctx.message.channel.send("**" + ctx.message.author.name + \
+                                 "**, are you absolutely sure you want to Delete This?\n**A** - Yes\n**B** - No")
+                    dmR1 = await ReactionChoiceMessage(ctx,dmMessage1,2)
+                    await dmMessage1.clear_reactions()
+                    if dmR1 == 1:
+                        dmMessage2 = await ctx.message.channel.send("**" + ctx.message.author.name + \
+                        "**, are you REALLY sure? Don't do this if Creators have already made Parts, that's low.\n**A** - Yes\n**B** - No")
+                        dmR2 = await ReactionChoiceMessage(ctx,dmMessage2,2)
+                        await dmMessage2.clear_reactions()
+                        if dmR2 == 1:
+                            dmHOSTROLE = GetRole(ctx.guild,datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="ROLE-HOST"))
+                            if dmHOSTROLE is not None: await dmHOSTROLE.delete()
+                            dmCREATORROLE = GetRole(ctx.guild, datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
+                                                                         line="ROLE-CREATOR"))
+                            if dmCREATORROLE is not None: await dmCREATORROLE.delete()
+                            dmVERIFIERROLE = GetRole(ctx.guild, datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
+                                                                         line="ROLE-VERIFIER"))
+                            if dmVERIFIERROLE is not None: await dmVERIFIERROLE.delete()
+                            dmFINISHEDROLE = GetRole(ctx.guild, datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
+                                                                         line="ROLE-FINISHED"))
+                            if dmFINISHEDROLE is not None: await dmFINISHEDROLE.delete()
+                            dmCHANNELPARTS = GetChannel(ctx.guild,datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="CHANNEL-PARTS"))
+                            if dmCHANNELPARTS is not None: await dmCHANNELPARTS.delete()
+                            dmCHANNELUPDATES = GetChannel(ctx.guild,
+                                                        datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
+                                                                     line="CHANNEL-UPDATES"))
+                            if dmCHANNELUPDATES is not None: await dmCHANNELUPDATES.delete()
+                            dmCHANNELPROGRESS = GetChannel(ctx.guild,
+                                                        datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
+                                                                     line="CHANNEL-PROGRESS"))
+                            if dmCHANNELPROGRESS is not None: await dmCHANNELPROGRESS.delete()
+                            dmCHANNELFINISHEDPARTS = GetChannel(ctx.guild,
+                                                        datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
+                                                                     line="CHANNEL-FINISHEDPARTS"))
+                            if dmCHANNELFINISHEDPARTS is not None: await dmCHANNELFINISHEDPARTS.delete()
+                            datasettings(file="fp-mcdir.txt",method="remove",line=mcc[8])
+                            os.remove("fp-mc/" + mcc[8] + ".txt")
+                            shutil.rmtree("fp-mc/" + mcc[8])
+                            await ResponseMessage(ctx,"Megacollab disbanded.","success")
+                else:
+                    await ResponseMessage(ctx,"","failed","nothost")
+            else:
+                await ResponseMessage(ctx,"","failed","nomc")
+        else:
+            await ResponseMessage(ctx,"","failed","botlacksperms")
+    else:
+        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+
 
 @client.command(pass_context=True)
 async def generateparts(ctx):
@@ -1071,6 +1167,9 @@ async def configpart(ctx,partnum):
                                 datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="CREATORS", newvalue=dataCreators)
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="TIME", newvalue=partR[1][2])
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="STATUS", newvalue=partR[2][2])
+                            if partR[2][2].lower() == "finished":
+                                dCL = LODUToStrName(StrToLODU(dataCreators))
+                                await Update(mcc,dCL + "'s Part is now Finished!")
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="VIDEO", newvalue=partR[3][2])
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="PARTDESC", newvalue=partR[4][2])
                             await RefreshParts(mcc)
@@ -1327,7 +1426,11 @@ async def submitpart(ctx,part):
                 await mcc[6].send("**" + mcc[6].name + "**, " + ctx.message.author.name + " has submitted a Part for " +
                                   mcc[0] + ":\n" + part)
             else:
-                await ResponseMessage(ctx, "You've already submitted your Part!", "failed")
+                datasettings(file="fp-mc/" + mcc[8] + ".txt", method="change",
+                             line="SUBMISSIONPART-" + str(ctx.message.author.id), newvalue=part)
+                await ResponseMessage(ctx, "Part updated!", "success")
+                await mcc[6].send("**" + mcc[6].name + "**, " + ctx.message.author.name + " has updated a Part for " +
+                                  mcc[0] + ":\n" + part)
         else:
             await ResponseMessage(ctx, "", "failed", "nomc")
     else:
