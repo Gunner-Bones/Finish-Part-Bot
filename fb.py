@@ -11,6 +11,7 @@ except: sys.exit("[Error] pass.txt needed for Secret")
 sl = []
 for l in s: sl.append(l.replace("\n",""))
 SECRET = sl[0]
+client.remove_command('help')
 
 # https://discordapp.com/api/oauth2/authorize?client_id=558890112855834624&permissions=0&scope=bot
 
@@ -500,85 +501,93 @@ def PREListCompare(parameters,newparameters):
     return PRECheck
 
 async def ParameterResponseEmbed(ctx,title,parameters: list):
-    global newparameters; global responsedonecalled
+    global newparameters; global responsedonecalled; global GLOBALPRM
     # parameters: [['name','string',"",True],['parts','integer',0,True],['creators','list',[],False]]
     # param types: string, integer, list, discord user, list of discord users, boolean
-    if len(parameters) == 0: return []
-    newparameters = copy.deepcopy(parameters)
-    responseembed = discord.Embed(title=title,description=
-    "*Type >>param \"parameter\" \"new value(s)\" to change conditions, and >>done when done*",color=0x5c5c5c)
-    for param in newparameters:
-        paramr = " "
-        if param[3]: paramr = " *"
-        paramvalue = ""
-        if param[1] == "string": paramvalue = param[2]
-        if param[1] == "boolean": paramvalue = param[2]
-        if param[1] == "integer": paramvalue = str(param[2])
-        if param[1] == "list":
-            if not param[2]: paramvalue = "None"
-            else: paramvalue = str(param[2]).replace("[","").replace("]","")
-        if param[1] == "discord user":
-            paramvalue = GetMemberGlobal(param[2])
-            if paramvalue is None: paramvalue = "None"
-            else: paramvalue = paramvalue.name
-        if param[1] == "list of discord users":
-            if not param[2]: paramvalue = "None"
+    if GLOBALPRM is not None:
+        await ResponseMessage(ctx,"Someone else is using the Bot right now!","failed")
+    else:
+        GLOBALPRM = ctx.author
+        if len(parameters) == 0: return []
+        newparameters = copy.deepcopy(parameters)
+        responseembed = discord.Embed(title=title,description=
+        "*Type >>param \"parameter\" \"new value(s)\" to change conditions, and >>done when done*",color=0x5c5c5c)
+        for param in newparameters:
+            paramr = " "
+            if param[3]: paramr = " *"
+            paramvalue = ""
+            if param[1] == "string": paramvalue = param[2]
+            if param[1] == "boolean": paramvalue = param[2]
+            if param[1] == "integer": paramvalue = str(param[2])
+            if param[1] == "list":
+                if not param[2]: paramvalue = "None"
+                else: paramvalue = str(param[2]).replace("[","").replace("]","")
+            if param[1] == "discord user":
+                paramvalue = GetMemberGlobal(param[2])
+                if paramvalue is None: paramvalue = "None"
+                else: paramvalue = paramvalue.name
+            if param[1] == "list of discord users":
+                if not param[2]: paramvalue = "None"
+                else:
+                    paramvalue = param[2]
+                    for p in paramvalue:
+                        tp = GetMemberGlobal(p)
+                        if tp is None: paramvalue[paramvalue.index(p)] = "None"
+                        else: paramvalue[paramvalue.index(p)] = tp.name
+                    paramvalue = str(paramvalue).replace("[","").replace("]","")
+            responseembed.add_field(name=param[0] + paramr,value=paramvalue,inline=False)
+            newparameters[newparameters.index(param)].append(newparameters.index(param))
+        responseembedmessage = await ctx.message.channel.send(embed=responseembed)
+        responsedonecalled = False
+        def check(message):
+            if message.author == ctx.author:
+                global newparameters; global responsedonecalled
+                if str(message.content).startswith(">>done"): responsedonecalled = True; return True
+                if str(message.content).startswith(">>param "):
+                    paramresponse = str(message.content).replace(">>param",""); paramq = paramquotationlist(paramresponse)
+                    if paramq is None: return False
+                    if len(paramq) != 2: return False
+                    for p in newparameters:
+                        if str(p[0]).lower() == str(paramq[0]).lower():
+                            paramql = []
+                            if p[1] == "boolean":
+                                if paramq[1].lower() != "false" and paramq[1].lower() != "true": return False
+                            if p[1] == "list": paramq[1] = paramlistlist(paramresponse,1)
+                            if p[1] == "discord user":
+                                paramq[1] = GetMemberGlobal(paramq[1])
+                                if paramq[1] is None: return False
+                            if p[1] == "list of discord users":
+                                paramq[1] = paramlistlist(paramresponse, 1)
+                                paramql = paramq[1]
+                                for pq in paramql:
+                                    pqt = GetMemberGlobal(pq)
+                                    if pqt is None: return False
+                                    paramql[paramql.index(pq)] = pqt
+                                paramq[1] = paramql
+                            newparameters[newparameters.index(p)][2] = paramq[1]
+                            responseembed.set_field_at(p[4],name=p[0],value=str(paramq[1]),inline=False)
+                            if p[1] == "discord user": responseembed.set_field_at(p[4],name=p[0],value=paramq[1].name,inline=False)
+                            if p[1] == "list of discord users":
+                                newparameters[newparameters.index(p)][2] = paramql
+                                paramq[1] = []
+                                for q in paramql: paramq[1].append(q)
+                                for pq in paramq[1]: paramq[1][paramq[1].index(pq)] = pq.name
+                                responseembed.set_field_at(p[4], name=p[0], value=str(paramq[1]),inline=False)
+                            return True
+            return False
+        while True:
+            if responsedonecalled: break
+            try:
+                message = await client.wait_for('message',timeout=120.0,check=check)
+            except asyncio.TimeoutError:
+                GLOBALPRM = None
+                return []
             else:
-                paramvalue = param[2]
-                for p in paramvalue:
-                    tp = GetMemberGlobal(p)
-                    if tp is None: paramvalue[paramvalue.index(p)] = "None"
-                    else: paramvalue[paramvalue.index(p)] = tp.name
-                paramvalue = str(paramvalue).replace("[","").replace("]","")
-        responseembed.add_field(name=param[0] + paramr,value=paramvalue,inline=False)
-        newparameters[newparameters.index(param)].append(newparameters.index(param))
-    responseembedmessage = await ctx.message.channel.send(embed=responseembed)
-    responsedonecalled = False
-    def check(message):
-        global newparameters; global responsedonecalled
-        if str(message.content).startswith(">>done"): responsedonecalled = True; return True
-        if str(message.content).startswith(">>param "):
-            paramresponse = str(message.content).replace(">>param",""); paramq = paramquotationlist(paramresponse)
-            if paramq is None: return False
-            if len(paramq) != 2: return False
-            for p in newparameters:
-                if str(p[0]).lower() == str(paramq[0]).lower():
-                    paramql = []
-                    if p[1] == "boolean":
-                        if paramq[1].lower() != "false" and paramq[1].lower() != "true": return False
-                    if p[1] == "list": paramq[1] = paramlistlist(paramresponse,1)
-                    if p[1] == "discord user":
-                        paramq[1] = GetMemberGlobal(paramq[1])
-                        if paramq[1] is None: return False
-                    if p[1] == "list of discord users":
-                        paramq[1] = paramlistlist(paramresponse, 1)
-                        paramql = paramq[1]
-                        for pq in paramql:
-                            pqt = GetMemberGlobal(pq)
-                            if pqt is None: return False
-                            paramql[paramql.index(pq)] = pqt
-                        paramq[1] = paramql
-                    newparameters[newparameters.index(p)][2] = paramq[1]
-                    responseembed.set_field_at(p[4],name=p[0],value=str(paramq[1]),inline=False)
-                    if p[1] == "discord user": responseembed.set_field_at(p[4],name=p[0],value=paramq[1].name,inline=False)
-                    if p[1] == "list of discord users":
-                        newparameters[newparameters.index(p)][2] = paramql
-                        paramq[1] = []
-                        for q in paramql: paramq[1].append(q)
-                        for pq in paramq[1]: paramq[1][paramq[1].index(pq)] = pq.name
-                        responseembed.set_field_at(p[4], name=p[0], value=str(paramq[1]),inline=False)
-                    return True
-        return False
-    while True:
-        if responsedonecalled: break
-        try:
-            message = await client.wait_for('message',timeout=60.0,check=check)
-        except asyncio.TimeoutError: return []
-        else:
-            await responseembedmessage.edit(embed=responseembed)
-            await message.add_reaction(CHAR_SUCCESS)
-    if not PREListCompare(parameters,newparameters): return None
-    return newparameters
+                await responseembedmessage.edit(embed=responseembed)
+                await message.add_reaction(CHAR_SUCCESS)
+        if not PREListCompare(parameters,newparameters): return None
+        GLOBALPRM = None
+        return newparameters
 
 def RandomColor():
     return discord.Color.from_rgb(r=random.randint(0,255),g=random.randint(0,255),b=random.randint(0,255))
@@ -908,7 +917,7 @@ async def on_typing(channel,user,when):
                         cleardata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
                         datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt",method="add",newkey="TEST",newvalue=str(user.id))
 
-
+GLOBALPRM = None
 
 
 @client.command(pass_context=True)
@@ -930,7 +939,7 @@ async def host(ctx):
                     hostMC_PARTS = 4
                     hostMC_VERIFIER = "None"
                     hostMC1R = await ParameterResponseEmbed(ctx,"Start a Megacollab",[["Name","string",hostMC_NAME,True],
-                                                                                      ["Song","string",hostMC_SONG,True],
+                                                                                      ["Song","string",hostMC_SONG,False],
                                                                                       ["Difficulty","string",hostMC_DIFFICULTY,True],
                                                                                       ["Other Hosts","list of discord users",hostMC_OTHERHOSTS,False],
                                                                                       ["Parts","integer",hostMC_PARTS,False],
@@ -981,7 +990,6 @@ async def host(ctx):
                         hostMC_FINISHROLE = await ctx.message.guild.create_role(name="Finished " + hostMC_NAME,color=RandomColor(),mentionable=True,hoist=True)
                         hostMC_CREATORROLE = await ctx.message.guild.create_role(name=hostMC_NAME + " Creator",color=RandomColor(), mentionable=True,hoist=True)
                         hostMC_VERIFIERROLE = await ctx.message.guild.create_role(name=hostMC_NAME + " Verifier",color=RandomColor(),mentionable=True,hoist=True)
-                        if hostMC_VERIFIER != "None": await hostMC_VERIFIER.add_roles(hostMC_VERIFIERROLE)
                         hostMC_CC = await ctx.message.guild.create_category_channel(name=hostMC_NAME)
                         channelhosto = {
                             ctx.message.guild.default_role: discord.PermissionOverwrite(send_messages=False),
@@ -1170,6 +1178,13 @@ async def configpart(ctx,partnum):
                             if partR[2][2].lower() == "finished":
                                 dCL = LODUToStrName(StrToLODU(dataCreators))
                                 await Update(mcc,dCL + "'s Part is now Finished!")
+                                dCLL = StrToLODU(dataCreators)
+                                dmFINISHEDROLE = GetRole(ctx.guild,
+                                                         datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
+                                                                      line="ROLE-FINISHED"))
+                                if dmFINISHEDROLE is not None:
+                                    for c in dCLL:
+                                        await c.give_roles(dmFINISHEDROLE)
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="VIDEO", newvalue=partR[3][2])
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="PARTDESC", newvalue=partR[4][2])
                             await RefreshParts(mcc)
@@ -1304,16 +1319,19 @@ async def editportfolio(ctx):
                                                                                      ["Video #2","string",pfVideo2,False]])
     if pfR is None: await ResponseMessage(ctx, "", "failed", "invalidparams")
     else:
-        pfBio = pfR[0][2]
-        if len(pfBio) > BIOLIMIT:
-            await ResponseMessage(ctx,"Your \"Short Bio\" is not short at all! Keep your Bio short and concise, under "
-                                  + str(BIOLIMIT) + " characters, for the MC Hosts' sakes.","failed")
-        else:
-            datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt",method="change",line="BIO",newvalue=pfBio)
-            datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt",method="change",line="VIDEO1",newvalue=pfR[1][2])
-            datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt",method="change",line="VIDEO2",newvalue=pfR[2][2])
-            await ResponseMessage(ctx,"Portfolio updated!","success")
-            await ctx.message.channel.send(embed=Portfolio(ctx.message.author))
+        pfD = True
+        try: pfBio = pfR[0][2]
+        except: pfD = False
+        if pfD:
+            if len(pfBio) > BIOLIMIT:
+                await ResponseMessage(ctx,"Your \"Short Bio\" is not short at all! Keep your Bio short and concise, under "
+                                      + str(BIOLIMIT) + " characters, for the MC Hosts' sakes.","failed")
+            else:
+                datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt",method="change",line="BIO",newvalue=pfBio)
+                datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt",method="change",line="VIDEO1",newvalue=pfR[1][2])
+                datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt",method="change",line="VIDEO2",newvalue=pfR[2][2])
+                await ResponseMessage(ctx,"Portfolio updated!","success")
+                await ctx.message.channel.send(embed=Portfolio(ctx.message.author))
 
 @client.command(pass_context=True)
 async def myportfolio(ctx):
@@ -1370,7 +1388,7 @@ async def openmcs(ctx):
             omm = "Here are some MC(s) with open Parts! Which sounds interesting?\n"
             omll = "A"; omln = 1; omlm = ""; omlk = {1:"A",2:"B",3:"C",4:"D",5:"E"}
             for mc in omc:
-                omlm += "**" + omll + "** - " + mc[0] + " by " + GetMemberGlobal(mc[6]).name + "\n"
+                omlm += "**" + omll + "** - " + mc[0] + " by " + GetMemberGlobal(mc[6]).name + " [" + str(mc[9]) + " parts open]\n"
                 omln += 1
                 omll = omlk[omln]
             omMessage = await ctx.message.channel.send(omm + omlm)

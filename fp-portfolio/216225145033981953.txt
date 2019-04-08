@@ -1,0 +1,3 @@
+BIO=Decent decorator and kinda good gameplay creator
+VIDEO1=https://youtu.be/uZW8tsQvVTU
+VIDEO2=https://youtu.be/e1cUM97ajmU

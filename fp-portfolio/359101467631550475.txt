@@ -1,0 +1,3 @@
+BIO=Host man, escetity guy, decoration yes
+VIDEO1= None
+VIDEO2=None
