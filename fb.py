@@ -885,7 +885,7 @@ async def on_ready():
         if server is not None: sl += server.name + ", "
     print("Connected Guilds: " + sl[:len(sl) - 2])
 
-
+"""
 @client.event
 async def on_typing(channel,user,when):
     mcc = AutoMCContext(channel,user)
@@ -916,7 +916,7 @@ async def on_typing(channel,user,when):
                     else:
                         cleardata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
                         datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt",method="add",newkey="TEST",newvalue=str(user.id))
-
+"""
 GLOBALPRM = None
 
 
