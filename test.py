@@ -1,2 +1,4 @@
 test = "wefew"
-print(test.index(" "))
+print(test.split(","))
+print(isinstance(test,(list,)))
+print(isinstance(test,(str,)))

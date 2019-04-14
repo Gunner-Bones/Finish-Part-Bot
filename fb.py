@@ -501,7 +501,7 @@ def PREListCompare(parameters,newparameters):
     return PRECheck
 
 async def ParameterResponseEmbed(ctx,title,parameters: list):
-    global newparameters; global responsedonecalled; global GLOBALPRM
+    global newparameters; global responsedonecalled; global GLOBALPRM; global responsecall
     # parameters: [['name','string',"",True],['parts','integer',0,True],['creators','list',[],False]]
     # param types: string, integer, list, discord user, list of discord users, boolean
     if GLOBALPRM is not None:
@@ -523,27 +523,30 @@ async def ParameterResponseEmbed(ctx,title,parameters: list):
                 if not param[2]: paramvalue = "None"
                 else: paramvalue = str(param[2]).replace("[","").replace("]","")
             if param[1] == "discord user":
-                paramvalue = GetMemberGlobal(param[2])
+                paramvalue = GetMember(param[2],ctx.guild)
                 if paramvalue is None: paramvalue = "None"
                 else: paramvalue = paramvalue.name
             if param[1] == "list of discord users":
                 if not param[2]: paramvalue = "None"
                 else:
-                    paramvalue = param[2]
+                    paramvalue = []
+                    for pv in param[2]: paramvalue.append(pv)
                     for p in paramvalue:
-                        tp = GetMemberGlobal(p)
+                        tp = GetMember(p,ctx.guild)
                         if tp is None: paramvalue[paramvalue.index(p)] = "None"
                         else: paramvalue[paramvalue.index(p)] = tp.name
-                    paramvalue = str(paramvalue).replace("[","").replace("]","")
+                    paramvalue = str(paramvalue)
+                    newparameters[newparameters.index(param)][2] = StrToLODU(param[2],ctx.guild)
             responseembed.add_field(name=param[0] + paramr,value=paramvalue,inline=False)
             newparameters[newparameters.index(param)].append(newparameters.index(param))
         responseembedmessage = await ctx.message.channel.send(embed=responseembed)
-        responsedonecalled = False
+        responsedonecalled = False; responsecall = False
         def check(message):
             if message.author == ctx.author:
-                global newparameters; global responsedonecalled
+                global newparameters; global responsedonecalled; global responsecall
                 if str(message.content).startswith(">>done"): responsedonecalled = True; return True
                 if str(message.content).startswith(">>param "):
+                    responsecall = True
                     paramresponse = str(message.content).replace(">>param",""); paramq = paramquotationlist(paramresponse)
                     if paramq is None: return False
                     if len(paramq) != 2: return False
@@ -554,13 +557,13 @@ async def ParameterResponseEmbed(ctx,title,parameters: list):
                                 if paramq[1].lower() != "false" and paramq[1].lower() != "true": return False
                             if p[1] == "list": paramq[1] = paramlistlist(paramresponse,1)
                             if p[1] == "discord user":
-                                paramq[1] = GetMemberGlobal(paramq[1])
+                                paramq[1] = GetMember(paramq[1],ctx.guild)
                                 if paramq[1] is None: return False
                             if p[1] == "list of discord users":
                                 paramq[1] = paramlistlist(paramresponse, 1)
                                 paramql = paramq[1]
                                 for pq in paramql:
-                                    pqt = GetMemberGlobal(pq)
+                                    pqt = GetMember(pq,ctx.guild)
                                     if pqt is None: return False
                                     paramql[paramql.index(pq)] = pqt
                                 paramq[1] = paramql
@@ -571,7 +574,8 @@ async def ParameterResponseEmbed(ctx,title,parameters: list):
                                 newparameters[newparameters.index(p)][2] = paramql
                                 paramq[1] = []
                                 for q in paramql: paramq[1].append(q)
-                                for pq in paramq[1]: paramq[1][paramq[1].index(pq)] = pq.name
+                                for pq in paramq[1]:
+                                    paramq[1][paramq[1].index(pq)] = pq.name
                                 responseembed.set_field_at(p[4], name=p[0], value=str(paramq[1]),inline=False)
                             return True
             return False
@@ -619,7 +623,7 @@ async def MCContext(ctx):
         if mchost is None: continue
         if mcserver is None: continue
         mcd[6] = mchost; mcd[7] = mcserver
-        mcd[4] = GetMemberGlobal(mcd[4]); mcd[5] = StrToLODU(mcd[5])
+        mcd[4] = GetMemberGlobal(mcd[4]); mcd[5] = StrToLODU(mcd[5],ctx.guild)
         if mchost == ctx.author and mcserver == ctx.message.guild: mcsfound.append(mcd)
     if not mcsfound: return None
     if len(mcsfound) == 1: return mcsfound[0]
@@ -658,7 +662,7 @@ def AutoMCContext(channel,user):
         if mchost is None: continue
         if mcserver is None: continue
         mcd[6] = mchost; mcd[7] = mcserver
-        mcd[4] = GetMemberGlobal(mcd[4]); mcd[5] = StrToLODU(mcd[5])
+        mcd[4] = GetMemberGlobal(mcd[4]); mcd[5] = StrToLODU(mcd[5],channel.guild)
         if mchost == user and mcserver == channel.guild: mcsfound.append(mcd)
     if not mcsfound: return None
     if len(mcsfound) == 1: return mcsfound[0]
@@ -683,10 +687,12 @@ def AutoMCContext(channel,user):
                 if channel == msChannelProgress: return mcc
         return None
 
-def StrToLODU(st):
+def StrToLODU(st,g):
     if st == "[]": return []
-    stm = st.replace("[","").replace("]",""); stm = stm.split(",")
-    for u in stm: stm[stm.index(u)] = GetMemberGlobal(u)
+    stm = str(st).replace("[","").replace("]","").replace("'",""); stm = stm.split(",")
+    if not isinstance(stm,(list,)):
+        stm = [stm.replace("[","").replace("]","").replace("'","")]
+    for u in stm: stm[stm.index(u)] = GetMember(u,g)
     return stm
 
 def DUToStr(du):
@@ -698,27 +704,34 @@ def DUToStr(du):
 def StrToList(st):
     stm = st.replace("[", "").replace("]", "").replace("'","")
     stm = stm.split(",")
+    if not isinstance(stm,(list,)):
+        stm = [stm.replace("[","").replace("]","").replace("'","")]
     for s in stm:
         if s.startswith(" "): stm[stm.index(s)] = s[1:]
     return stm
 
+
 def LODUToStr(l):
     if not l: return "None"
-    for du in l:
+    ll = []
+    for lt in l: ll.append(lt)
+    for du in ll:
         dus = "None"
         try: dus = du.id
         except: pass
-        l[l.index(du)] = dus
-    return str(l)
+        ll[ll.index(du)] = dus
+    return str(ll)
 
 def LODUToStrName(l):
     if not l: return "None"
-    for du in l:
+    ll = []
+    for lt in l: ll.append(lt)
+    for du in ll:
         dus = "None"
         try: dus = du.name
         except: pass
-        l[l.index(du)] = dus
-    return str(l).replace("[","").replace("]","").replace("'","")
+        ll[ll.index(du)] = dus
+    return str(ll).replace("[","").replace("]","").replace("'","")
 
 def StrToDatetime(st):
     stm = st
@@ -736,8 +749,8 @@ def IsHost(ctx,mc):
     if mc[6] == ctx.message.author: return True
     return ctx.message.author in mc[4]
 
-def PartsMessage(mcid,pos):
-    pmCreators = LODUToStrName(StrToLODU(datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="CREATORS")))
+def PartsMessage(mcid,pos,s):
+    pmCreators = LODUToStrName(StrToLODU(datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="CREATORS"),s))
     pmGroups = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="GROUPS")
     pmColors = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="COLORS")
     pmTime = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="TIME")
@@ -755,7 +768,7 @@ def CheckIfArtPart(mcid,pos):
 
 def AllPartsMessage(mc):
     pmf = ""
-    for n in range(1, int(mc[3]) + 1): pmf += PartsMessage(mc[8],str(n)) + "\n"
+    for n in range(1, int(mc[3]) + 1): pmf += PartsMessage(mc[8],str(n),mc[7]) + "\n"
     return pmf
 
 async def InitGenerateParts(mc,channel):
@@ -768,6 +781,7 @@ async def InitGenerateParts(mc,channel):
         datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt",method="add",newkey="TIME",newvalue="0:00-0:00")
         datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt", method="add", newkey="VIDEO", newvalue="None")
         datasettings(file="fp-mc/" + mc[8] + "/PART" + str(n) + ".txt", method="add", newkey="STATUS", newvalue="Empty")
+        print(mc[0] + ": Initiated Part " + str(n))
     # Assigning Colors
     apin = True
     for n in range(1, int(mc[3]) + 1):
@@ -807,7 +821,7 @@ async def RefreshParts(mc):
 
 async def GetPart(ctx,mc,pos):
     mcid = mc[8]
-    pmCreators = StrToLODU(datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt", method="get", line="CREATORS"))
+    pmCreators = StrToLODU(datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt", method="get", line="CREATORS"),ctx.guild)
     pmGroups = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt", method="get", line="GROUPS")
     pmColors = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt", method="get", line="COLORS")
     pmTime = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt", method="get", line="TIME")
@@ -845,7 +859,7 @@ def Portfolio(user):
         mcpt = datasettings(file="fp-mc/" + mcid + "/PART1.txt",method="get",line="CREATORS")
         if mcpt is None: continue
         for n in range(1, int(mcd[3]) + 1):
-            mcCreators = StrToLODU(datasettings(file="fp-mc/" + mcid + "/PART" + str(n) + ".txt",method="get",line="CREATORS"))
+            mcCreators = StrToLODU(datasettings(file="fp-mc/" + mcid + "/PART" + str(n) + ".txt",method="get",line="CREATORS"),user.guild)
             if user in mcCreators:
                 pMCS += mcd[0] + ", "
                 break
@@ -864,16 +878,18 @@ def Portfolio(user):
 async def FinishPart(user,mc):
     await user.send("Finish Part Bot reminds you to Finish your Part in **" + mc[0] + "**!")
     fpimage = random.choice(os.listdir("goodstuff/"))
-    with open(fpimage,"rb") as fpi:
+    with open("goodstuff/" + fpimage,"rb") as fpi:
         fpfile = discord.File(fp=fpi)
         await user.send(file=fpfile)
+    print("Reminded " + user.name + " to finish for " + mc[0])
 
 async def Update(mcc,mes):
     uChannel = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="CHANNEL-UPDATES")
     if uChannel is None: return None
-    uChannel = GetChannel(GetGuild(mcc[7]),uChannel)
+    uChannel = GetChannel(GetGuild(str(mcc[7].id)),uChannel)
     if uChannel is None: return None
     await uChannel.send("[" + DatetimeToStr(datetime.datetime.now()) + "] " + mes)
+
 
 
 @client.event
@@ -885,7 +901,7 @@ async def on_ready():
         if server is not None: sl += server.name + ", "
     print("Connected Guilds: " + sl[:len(sl) - 2])
 
-"""
+
 @client.event
 async def on_typing(channel,user,when):
     mcc = AutoMCContext(channel,user)
@@ -895,7 +911,7 @@ async def on_typing(channel,user,when):
             mdt = datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt",method="get",line="TEST")
             if mdt is None:
                 newfile("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt")
-                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt",method="add",newkey="TEST",newvalue=str(user.id))
+                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt",method="add",newkey=DatetimeToStr(datetime.datetime.now()),newvalue=str(user.id))
             mdl = latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt")
             if mdl != "TEST":
                 mdlt = StrToDatetime(mdl); mdt = StrToDatetime(DatetimeToStr(datetime.datetime.now()))
@@ -905,18 +921,33 @@ async def on_typing(channel,user,when):
                                  newkey=DatetimeToStr(mdlt),newvalue=str(channel.id))
             mcmd = StrToDatetime(latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/MAIN.txt"))
             if mcmd + datetime.timedelta(days=5) < datetime.datetime.now():
+                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/MAIN.txt",method="add",newkey=DatetimeToStr(datetime.datetime.now()),newvalue="ACTIVITY CHECK")
                 mcmCreators = []
                 for n in range(1, int(mcc[3]) + 1):
-                    nCreators = StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt",method="get",line="CREATORS"))
+                    nCreators = StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt",method="get",line="CREATORS"),channel.guild)
                     for c in nCreators:
                         if c not in mcmCreators: mcmCreators.append(c)
                 for c in mcmCreators:
                     cdt = latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
-                    if cdt is None: await FinishPart(c,mcc)
+                    cdv = False
+                    if cdt is None: cdv = True
+                    if not cdv:
+                        cdt = StrToDatetime(cdt)
+                        if cdt + datetime.timedelta(days=2) < datetime.datetime.now(): cdv = True
+                    if cdv:
+                        nsd = datasettings(file="fp-vars.txt",method="get",line="NOTIFSAFETYDEBUG")
+                        if nsd.lower() == "false":
+                            await FinishPart(c,mcc)
+                            datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt", method="add",
+                                         newkey=DatetimeToStr(datetime.datetime.now()), newvalue=str(user.id))
+                        else:
+                            cleardata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
+                            datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt", method="add",
+                                         newkey=DatetimeToStr(datetime.datetime.now()), newvalue=str(user.id))
                     else:
                         cleardata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
-                        datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt",method="add",newkey="TEST",newvalue=str(user.id))
-"""
+                        datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt",method="add",newkey=DatetimeToStr(datetime.datetime.now()),newvalue=str(user.id))
+
 GLOBALPRM = None
 
 
@@ -1159,7 +1190,7 @@ async def configpart(ctx,partnum):
                 if IsHost(ctx,mcc):
                     partStatus = datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt",method="get",line="STATUS")
                     if partStatus is not None:
-                        partCreators = StrToList(LODUToStrName(StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt",method="get",line="CREATORS"))))
+                        partCreators = StrToList(LODUToStrName(StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt",method="get",line="CREATORS"),ctx.guild)))
                         partTime = datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt",method="get",line="TIME")
                         partVideo = datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt",method="get",line="VIDEO")
                         partDesc = datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt",method="get",line="PARTDESC")
@@ -1170,21 +1201,18 @@ async def configpart(ctx,partnum):
                                                                                               ["Description","string",partDesc,False]])
                         if not partR: await ResponseMessage(ctx,"","failed","invalidparams")
                         else:
-                            dataCreators = LODUToStr(partR[0][2])
+                            dataCreators = partR[0][2]
                             if "None" not in dataCreators:
-                                datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="CREATORS", newvalue=dataCreators)
+                                datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="CREATORS", newvalue=LODUToStr(dataCreators))
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="TIME", newvalue=partR[1][2])
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="STATUS", newvalue=partR[2][2])
                             if partR[2][2].lower() == "finished":
-                                dCL = LODUToStrName(StrToLODU(dataCreators))
+                                dCL = LODUToStrName(dataCreators)
                                 await Update(mcc,dCL + "'s Part is now Finished!")
-                                dCLL = StrToLODU(dataCreators)
-                                dmFINISHEDROLE = GetRole(ctx.guild,
-                                                         datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",
-                                                                      line="ROLE-FINISHED"))
+                                dmFINISHEDROLE = ctx.guild.get_role(int(datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get",line="ROLE-FINISHED")))
                                 if dmFINISHEDROLE is not None:
-                                    for c in dCLL:
-                                        await c.give_roles(dmFINISHEDROLE)
+                                    for c in dataCreators:
+                                        await c.add_roles(dmFINISHEDROLE)
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="VIDEO", newvalue=partR[3][2])
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="PARTDESC", newvalue=partR[4][2])
                             await RefreshParts(mcc)
@@ -1340,7 +1368,7 @@ async def myportfolio(ctx):
     else: await ctx.message.channel.send(embed=Portfolio(ctx.message.author))
 
 @client.command(pass_context=True)
-async def portfolio(ctx,puser):
+async def findportfolio(ctx,puser):
     puser = GetMemberGlobal(puser)
     if puser is not None:
         if datasettings(file="fp-portfolio/" + str(puser.id) + ".txt", method="get", line="BIO") is None:
@@ -1424,7 +1452,7 @@ async def mypart(ctx):
         mcc = await MCContext(ctx)
         if mcc is not None:
             for n in range(1, int(mcc[3]) + 1):
-                mpCreators = StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt",method="get",line="CREATORS"))
+                mpCreators = StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt",method="get",line="CREATORS"),ctx.guild)
                 if ctx.author in mpCreators:
                     await GetPart(ctx,mcc,str(n))
         else:
@@ -1484,9 +1512,33 @@ async def partsubmissions(ctx):
 
 
 @client.command(pass_context=True)
+async def absolveactivity(ctx):
+    if ctx.guild:
+        if BotHasPermissions(ctx):
+            mcc = await MCContext(ctx)
+            if mcc is not None:
+                if IsHost(ctx,mcc):
+                    for user in ctx.guild.members:
+                        if latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt") is None:
+                            newfile("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt")
+                            datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt", method="add",
+                                         newkey=DatetimeToStr(datetime.datetime.now()), newvalue=str(user.id))
+                    await ResponseMessage(ctx,"All Members absolved of activity","success")
+                else:
+                    await ResponseMessage(ctx,"","failed","nothost")
+            else:
+                await ResponseMessage(ctx,"","failed","nomc")
+        else:
+            await ResponseMessage(ctx,"","failed","botlacksperms")
+    else:
+        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+
+
+@client.command(pass_context=True)
 async def ctest(ctx):
-    mcc = await MCContext(ctx)
-    print(mcc)
+    if str(ctx.author.id) == "172861416364179456":
+        mcc = await MCContext(ctx)
+        await FinishPart(ctx.author,mcc)
 
 
 client.run(SECRET)
