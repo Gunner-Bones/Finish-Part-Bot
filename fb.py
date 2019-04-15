@@ -135,254 +135,6 @@ def paramlistlist(p,i):
         if n[len(n) - 1] == " ": params[params.index(n)] = n[:len(n) - 1]
     return params
 
-# These classes don't work lol
-
-MCS = []
-
-class Megacollab(object):
-    def __init__(self,mcid,name="None",song="None",difficulty="None",parts=4,cohosts=None,verifier=None,host=None,server=None):
-        (filename, line_number, function_name, text) = traceback.extract_stack()[-2]
-        def_name = text[:text.find('=')].strip()
-        self.fname = def_name
-        self.mcid = mcid
-
-        try: self.load()
-        except:
-            self.name = name
-            self.song = song
-            self.difficulty = difficulty
-            self.parts = int(parts)
-            self.cohosts = cohosts
-            self.verifier = GetMemberGlobal(verifier)
-            self.host = GetMemberGlobal(host)
-            self.server = GetGuild(server)
-
-            self.creators = []
-            self.partlist = []
-            self.globalpartlist = []
-            for p in range(1,self.parts + 1):
-                self.partlist.append(Part(mc=self,position=p,ptype=None,ptime=None,creators=[],pgroups=None,pcolors=None,mcid=self.mcid))
-            self.save()
-    def save(self):
-        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","w+")
-        f.write(pickle.dumps(self.__dict__))
-        f.close()
-    def load(self):
-        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","r")
-        dataPickle = f.read()
-        f.close()
-        self.__dict__ = pickle.loads(dataPickle)
-    def assignparts(self,ptype,custom=None,creators=None,globalcreators=None):
-        """
-        PART TYPES
-        x = self.parts (number of parts)
-        *****For demonstration, let's make x = 7. Replace 7 and multiples of 7 with x.*****
-
-        A SLOT is a space a user can take to either Layout [L], Decorate [D], or Create (both) [C]. A PART is a section
-        of the level that fulfills the Layout and Decoration requirements for that range. A PART can have different
-        combinations of SLOTS (one slot user creates the entire part, 2 slots where 1 decorates and 1 layouts, etc)
-        To avoid confusion, the difference between a CREATOR [C] slot and a LAYOUT and DECORATOR [LD] slot pair is
-        a Creator is a single user decorating/layouting a part while a LD pair is 2 separate users where one does Layout
-        and one does Decoration.
-
-        -7L7D: 7 Parts, 14 user slots. Each part consists of a Layout slot and a Decoration slot by separate users.
-        -7C: 7 Parts, 7 user slots. Each part is Created by a slot user.
-        -1L7D: 7 parts, 8 user slots. The Layout for the entire level is made by a single slot user while each part
-        only has 1 slot for decorating.
-        -CUSTOM: Custom combination of L, D, and C.
-
-        INDIVIDUAL PART SLOT TYPES (used for making CUSTOM part combinations)
-        -C: 1 Creator slot
-        -LD: 1 Layout and 1 Decorator slot
-        -LDD: 1 Layout and 2 Decorator slots (this does happen sometimes where 2 decorators decorate one part)
-        -D: 1 Decorator slot (if a Layout was made for the entire level)
-        -L: 1 Layout slot where layout is used for entire level
-        -A: 1 Art slot
-
-        *****Again, part types are not limited to 7, I used x = 7 in the notes above for demonstration of how it
-        would look, as x is displayed as your megacollab's part number when viewing part types.*****
-        """
-        # creators & globalcreators: [[user1,user2],[user1,user2]...]
-
-        # Assigning Slots
-        if ptype != "CUSTOM":
-            if ptype == "1LXD":
-                globalpart = GlobalPart(mc=self,mcid=self.mcid)
-                globalpartslot = Slot(mc=self,part=globalpart,stype="L",sid=1,creator=globalcreators[0],mcid=self.mcid)
-                globalpart.slot = globalpartslot
-                self.globalpartlist.append(globalpart)
-            for part in self.partlist: part.generateslots_normal(ptype=ptype,creators=creators[part.position - 1])
-        elif ptype == "CUSTOM":
-            for part in self.partlist: part.generateslots_custom(custom=custom)
-
-        # Assigning Colors
-        apin = True
-        for part in self.partlist:
-            if apin: part.pcolors = "1-100"; apin = False
-            if not apin: part.pcolors = "101-200"; apin = True
-
-        # Assigning Groups
-        if self.parts < 20:
-            # Group sets: 50 - 100 - 150 - 200
-            apd = int(999.0 / float(self.parts)); apc = 0
-            if apd <= 50: apc = 50
-            elif 100 >= apd >= 50:
-                if 100 - apd > 50 - apd: apc = 100
-                else: apc = 50
-            elif 150 >= apd >= 100:
-                if 150 - apd > 100 - apd: apc = 150
-                else: apc = 100
-            elif 200 >= apd >= 150:
-                if 200 - apd > 150 - apd: apc = 200
-                else: apc = 150
-            apn = 0
-            for part in self.partlist:
-                if part.position == 1: part.pgroups = "3-" + str(apc); apn += apc
-                else: part.pgroups = str(int(apn + 1)) + "-" + str(apc); apn += apc
-
-class GlobalPart(object):
-    def __init__(self,mc,mcid,slot=None,pgroups=None,pcolors=None,status=None,video=None):
-        (filename, line_number, function_name, text) = traceback.extract_stack()[-2]
-        def_name = text[:text.find('=')].strip()
-        self.fname = def_name
-        self.mcid = mcid
-
-        try: self.load()
-        except:
-            self.mc = mc
-            self.slot = slot
-            self.pgroups = pgroups
-            self.pcolors = pcolors
-            self.status = status
-            self.video = video
-    def save(self):
-        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","w+")
-        f.write(pickle.dumps(self.__dict__))
-        f.close()
-    def load(self):
-        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","r")
-        dataPickle = f.read()
-        f.close()
-        self.__dict__ = pickle.loads(dataPickle)
-
-
-class Part(object):
-    def __init__(self,mc,mcid,position,ptype=None,ptime=None,creators=None,pgroups=None,pcolors=None,status=None,video=None):
-        (filename, line_number, function_name, text) = traceback.extract_stack()[-2]
-        def_name = text[:text.find('=')].strip()
-        self.fname = def_name
-        self.mcid = mcid
-
-        try: self.load()
-        except:
-            self.ptype = ptype
-            self.ptime = ptime
-            self.pgroups = pgroups
-            self.pcolors = pcolors
-            self.creators = creators
-            self.mc = mc
-            self.position = position
-            self.status = status
-            self.video = video
-            self.slots = []
-    def generateslots_normal(self,ptype,creators):
-        # Order matters for list: creators
-        # If 1LXD: creators[0] will always be the Layouter slot
-        if ptype == "XLXD":
-            self.slots.append(Slot(mc=self.mc, part=self, stype="L", sid=self.position, creator=creators[0],mcid=self.mcid))
-            self.slots.append(Slot(mc=self.mc, part=self, stype="D", sid=self.position, creator=creators[1],mcid=self.mcid))
-        if ptype == "XC":
-            self.slots.append(Slot(mc=self.mc, part=self, stype="C", sid=self.position, creator=creators[0],mcid=self.mcid))
-        if ptype == "1LXD":
-            self.slots.append(Slot(mc=self.mc, part=self, stype="D", sid=self.position, creator=creators[1],mcid=self.mcid))
-    def generateslots_custom(self,custom):
-        """
-        :param custom: List of Dictionaries containing part structure
-        A single part can have max 4 slots
-        Example:
-        [{
-            'partpos': 1,
-            'slots': [
-            {
-                'stype': 'L1'
-                'creator': discord user obj
-            },
-            {
-                'stype': 'D1'
-                'creator': discord user obj
-            }
-            ]
-        },
-        {
-            'partpos': 2
-            'slots': [
-            {
-                'stype': 'L2'
-                'creator': discord user obj
-            },
-            {
-                'stype': 'D2'
-                'creator': discord user obj
-            }
-            ]
-        },...]
-        """
-        for part in custom:
-            if part is not None:
-                if part['partpos'] == self.position:
-                    for slot in part['slots']:
-                        self.slots.append(Slot(mc=self.mc, mcid=self.mcid,part=self, stype=slot['stype'][0], sid=int(slot['stype'][1]),
-                                               creator=slot['creator']))
-                    break
-    def save(self):
-        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","w+")
-        f.write(pickle.dumps(self.__dict__))
-        f.close()
-    def load(self):
-        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","r")
-        dataPickle = f.read()
-        f.close()
-        self.__dict__ = pickle.loads(dataPickle)
-    def __str__(self):
-        psstatus = EMOJI_EMPTY
-        if self.status == "assigned": psstatus = EMOJI_ASSIGNED
-        if self.status == "progress": psstatus = EMOJI_PROGRESS
-        if self.status == "finished": psstatus = EMOJI_FINISHED
-        pstime = "`No Time Range assigned`"
-        if self.ptime is not None: pstime = self.ptime
-        pscreators = "UNASSIGNED"
-        if len(self.creators) >= 1:
-            pscreators = ""
-            for creator in self.creators: pscreators += creator.name + " "
-        pscolors = "`No Colors generated`"
-        if self.pcolors is not None: pscolors = self.pcolors
-        psgroups = "`No Groups generated`"
-        if self.pgroups is not None: psgroups = self.pgroups
-        return psstatus + " " + pstime + " - " + pscreators + " - Colors: " + pscolors + " - Groups: " + psgroups
-
-class Slot(object):
-    def __init__(self,mc,mcid,part,stype,sid,creator):
-        (filename, line_number, function_name, text) = traceback.extract_stack()[-2]
-        def_name = text[:text.find('=')].strip()
-        self.fname = def_name
-        self.mcid = mcid
-
-        try: self.load()
-        except:
-            self.mc = mc
-            self.part = part
-            self.stype = stype
-            self.sid = sid
-            self.creator = creator
-    def save(self):
-        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","w+")
-        f.write(pickle.dumps(self.__dict__))
-        f.close()
-    def load(self):
-        f = open("fp-mc/" + self.mcid + "/" + self.fname + ".txt","r")
-        dataPickle = f.read()
-        f.close()
-        self.__dict__ = pickle.loads(dataPickle)
 
 def GetMember(mn,s):
     if str(mn).startswith("<@"):
@@ -890,7 +642,41 @@ async def Update(mcc,mes):
     if uChannel is None: return None
     await uChannel.send("[" + DatetimeToStr(datetime.datetime.now()) + "] " + mes)
 
+async def MCCount():
+    mccount = 0
+    for mcid in alldatakeys("fp-mcdir.txt"): mccount += 1
+    datasettings(file="fp-vars.txt", method="change", line="MCS", newvalue=str(mccount))
+    if mccount > 0: await client.change_presence(
+        activity=discord.Game(name="Hosting " + str(mccount) + " Megacollab(s)"))
 
+def MCHoster(user,method,newlimit=0):
+    """
+    :param method: get,add,subtract,bypasslimit
+    """
+    if method == "get": return datasettings(file="fp-hosters.txt",method="get",line=str(user.id))
+    if method == "add":
+        if datasettings(file="fp-hosters.txt",method="get",line=str(user.id)) is None:
+            datasettings(file="fp-hosters.txt",method="add",newkey=str(user.id),newvalue="1")
+            return "1"
+        else:
+            mhlimit = datasettings(file="fp-hosters.txt",method="get",line="BYPASS" + str(user.id))
+            if mhlimit is None: return None
+            mhcurrent = int(datasettings(file="fp-hosters.txt",method="get",line=str(user.id)))
+            mhlimit = int(mhlimit)
+            if mhcurrent >= mhlimit: return None
+            else: datasettings(file="fp-hosters.txt",method="change",line=str(user.id),newvalue=str(int(mhcurrent + 1)))
+    if method == "subtract":
+        if datasettings(file="fp-hosters.txt", method="get", line=str(user.id)) is None: return None
+        else:
+            mhcurrent = int(datasettings(file="fp-hosters.txt",method="get",line=str(user.id))) - 1
+            if mhcurrent < 1: datasettings(file="fp-hosters.txt",method="remove",line=str(user.id)); return "0"
+            else:
+                datasettings(file="fp-hosters.txt",method="change",line=str(user.id),newvalue=str(mhcurrent))
+    if method == "bypasslimit":
+        if datasettings(file="fp-hosters.txt",method="get",line="BYPASS" + str(user.id)) is None:
+            datasettings(file="fp-hosters.txt",method="add",newkey="BYPASS" + str(user.id),newvalue=str(newlimit))
+        else:
+            datasettings(file="fp-hosters.txt",method="change",line="BYPASS" + str(user.id),newvalue=str(newlimit))
 
 @client.event
 async def on_ready():
@@ -900,6 +686,7 @@ async def on_ready():
     for server in client.guilds:
         if server is not None: sl += server.name + ", "
     print("Connected Guilds: " + sl[:len(sl) - 2])
+    await MCCount()
 
 
 @client.event
@@ -977,91 +764,94 @@ async def host(ctx):
                                                                                       ["Verifier","discord user",hostMC_VERIFIER,False]])
                     if not hostMC1R: await ResponseMessage(ctx,"","failed","invalidparams")
                     else:
-                        hostMC_NAME = hostMC1R[0][2]
-                        hostMC_SONG = hostMC1R[1][2]
-                        hostMC_DIFFICULTY = hostMC1R[2][2]
-                        hostMC_OTHERHOSTS = hostMC1R[3][2]
-                        mcohid = []
-                        for h in hostMC_OTHERHOSTS: mcohid.append(h.id)
-                        mcohn = []
-                        for h in hostMC_OTHERHOSTS: mcohid.append(h.name)
-                        hostMC_PARTS = hostMC1R[4][2]
-                        hostMC_VERIFIER = hostMC1R[5][2]
-                        mcv = hostMC_VERIFIER; mcvn = hostMC_VERIFIER
-                        try: mcv = mcv.id
-                        except: mcv = "None"
-                        try: mcvn = mcvn.name
-                        except: mcvn = "None"
-                        hostMC_ID = str(random.randint(10000,99999))
-                        for mcid in alldatakeys("fp-mcdir.txt"):
-                            if mcid == hostMC_ID: hostMC_ID = str(random.randint(10000,99999))
-                        newfile("fp-mc/" + hostMC_ID + ".txt")
-                        os.mkdir("fp-mc/" + hostMC_ID)
-                        os.mkdir("fp-mc/" + hostMC_ID + "/ACTIVITYLOG")
-                        newfile("fp-mc/" + hostMC_ID + "/ACTIVITYLOG/MAIN.txt")
-                        datasettings(file="fp-mc/" + hostMC_ID + "/ACTIVITYLOG/MAIN.txt",method="add",newkey=DatetimeToStr(datetime.datetime.now()),newvalue="MC CREATED")
-                        mcw = hostMC_NAME + ";" + hostMC_SONG + ";" + hostMC_DIFFICULTY + ";" + \
-                            str(hostMC_PARTS) + ";" + str(mcohid) + ";" + str(mcv) + ";" + \
-                              str(ctx.message.author.id) + ";" + str(ctx.message.guild.id)
-                        datasettings(file="fp-mcdir.txt",method="add",newkey=hostMC_ID,newvalue=mcw)
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt",method="add",newkey="NAME",newvalue=hostMC_NAME)
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt",method="add",newkey="SONG",newvalue=hostMC_SONG)
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt",method="add",newkey="DIFFICULTY",newvalue=hostMC_DIFFICULTY)
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="PARTS", newvalue=str(hostMC_PARTS))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="OTHERHOSTS", newvalue=str(mcohid))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="VERIFIER",newvalue=str(mcv))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="OWNER", newvalue=str(ctx.message.author.id))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="SERVER", newvalue=str(ctx.message.guild.id))
-                        hostMC_HOSTROLE = await ctx.message.guild.create_role(name=hostMC_NAME + " Host",color=RandomColor(),mentionable=True,hoist=True)
-                        await ctx.author.add_roles(hostMC_HOSTROLE)
-                        hostMC_COHOSTROLE = "None"
-                        if hostMC_OTHERHOSTS:
-                            hostMC_COHOSTROLE = await ctx.message.guild.create_role(name=hostMC_NAME + " Co-Host",color=RandomColor(),mentionable=True,hoist=True)
-                            for member in hostMC_OTHERHOSTS: await member.add_roles(hostMC_COHOSTROLE)
-                        hostMC_FINISHROLE = await ctx.message.guild.create_role(name="Finished " + hostMC_NAME,color=RandomColor(),mentionable=True,hoist=True)
-                        hostMC_CREATORROLE = await ctx.message.guild.create_role(name=hostMC_NAME + " Creator",color=RandomColor(), mentionable=True,hoist=True)
-                        hostMC_VERIFIERROLE = await ctx.message.guild.create_role(name=hostMC_NAME + " Verifier",color=RandomColor(),mentionable=True,hoist=True)
-                        hostMC_CC = await ctx.message.guild.create_category_channel(name=hostMC_NAME)
-                        channelhosto = {
-                            ctx.message.guild.default_role: discord.PermissionOverwrite(send_messages=False),
-                            hostMC_HOSTROLE: discord.PermissionOverwrite(send_messages=True)
-                        }
-                        hostMC_PARTSCHANNEL = await ctx.message.guild.create_text_channel(name="parts",category=hostMC_CC,overwrites=channelhosto)
-                        hostMC_UPDATESCHANNEL = await ctx.message.guild.create_text_channel(name="updates",category=hostMC_CC,overwrites=channelhosto)
-                        channelcreatoro = {
-                            ctx.message.guild.default_role: discord.PermissionOverwrite(send_messages=False),
-                            hostMC_CREATORROLE: discord.PermissionOverwrite(send_messages=True),
-                            hostMC_HOSTROLE: discord.PermissionOverwrite(send_messages=True)
-                        }
-                        hostMC_PROGRESSCHANNEL = await ctx.message.guild.create_text_channel(name="progress",category=hostMC_CC,overwrites=channelcreatoro)
-                        hostMC_FINISHEDPARTSCHANNEL = await ctx.message.guild.create_text_channel(name="finished-parts",category=hostMC_CC,overwrites=channelcreatoro)
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-HOST", newvalue=str(hostMC_HOSTROLE.id))
-                        if hostMC_OTHERHOSTS:
-                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-COHOST", newvalue=str(hostMC_COHOSTROLE.id))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-CREATOR", newvalue=str(hostMC_CREATORROLE.id))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-VERIFIER", newvalue=str(hostMC_VERIFIERROLE.id))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-FINISHED", newvalue=str(hostMC_FINISHROLE.id))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNELCATEGORY", newvalue=str(hostMC_CC.id))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-PARTS", newvalue=str(hostMC_PARTSCHANNEL.id))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-UPDATES",newvalue=str(hostMC_UPDATESCHANNEL.id))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-PROGRESS",newvalue=str(hostMC_PROGRESSCHANNEL.id))
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-FINISHEDPARTS",newvalue=str(hostMC_FINISHEDPARTSCHANNEL.id))
+                        if MCHoster(user=ctx.author,method="add") is not None:
+                            hostMC_NAME = hostMC1R[0][2]
+                            hostMC_SONG = hostMC1R[1][2]
+                            hostMC_DIFFICULTY = hostMC1R[2][2]
+                            hostMC_OTHERHOSTS = hostMC1R[3][2]
+                            mcohid = []
+                            for h in hostMC_OTHERHOSTS: mcohid.append(h.id)
+                            mcohn = []
+                            for h in hostMC_OTHERHOSTS: mcohid.append(h.name)
+                            hostMC_PARTS = hostMC1R[4][2]
+                            hostMC_VERIFIER = hostMC1R[5][2]
+                            mcv = hostMC_VERIFIER; mcvn = hostMC_VERIFIER
+                            try: mcv = mcv.id
+                            except: mcv = "None"
+                            try: mcvn = mcvn.name
+                            except: mcvn = "None"
+                            hostMC_ID = str(random.randint(10000,99999))
+                            for mcid in alldatakeys("fp-mcdir.txt"):
+                                if mcid == hostMC_ID: hostMC_ID = str(random.randint(10000,99999))
+                            newfile("fp-mc/" + hostMC_ID + ".txt")
+                            os.mkdir("fp-mc/" + hostMC_ID)
+                            os.mkdir("fp-mc/" + hostMC_ID + "/ACTIVITYLOG")
+                            newfile("fp-mc/" + hostMC_ID + "/ACTIVITYLOG/MAIN.txt")
+                            datasettings(file="fp-mc/" + hostMC_ID + "/ACTIVITYLOG/MAIN.txt",method="add",newkey=DatetimeToStr(datetime.datetime.now()),newvalue="MC CREATED")
+                            mcw = hostMC_NAME + ";" + hostMC_SONG + ";" + hostMC_DIFFICULTY + ";" + \
+                                str(hostMC_PARTS) + ";" + str(mcohid) + ";" + str(mcv) + ";" + \
+                                  str(ctx.message.author.id) + ";" + str(ctx.message.guild.id)
+                            datasettings(file="fp-mcdir.txt",method="add",newkey=hostMC_ID,newvalue=mcw)
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt",method="add",newkey="NAME",newvalue=hostMC_NAME)
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt",method="add",newkey="SONG",newvalue=hostMC_SONG)
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt",method="add",newkey="DIFFICULTY",newvalue=hostMC_DIFFICULTY)
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="PARTS", newvalue=str(hostMC_PARTS))
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="OTHERHOSTS", newvalue=str(mcohid))
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="VERIFIER",newvalue=str(mcv))
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="OWNER", newvalue=str(ctx.message.author.id))
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="SERVER", newvalue=str(ctx.message.guild.id))
+                            hostMC_HOSTROLE = await ctx.message.guild.create_role(name=hostMC_NAME + " Host",color=RandomColor(),mentionable=True,hoist=True)
+                            await ctx.author.add_roles(hostMC_HOSTROLE)
+                            hostMC_COHOSTROLE = "None"
+                            if hostMC_OTHERHOSTS:
+                                hostMC_COHOSTROLE = await ctx.message.guild.create_role(name=hostMC_NAME + " Co-Host",color=RandomColor(),mentionable=True,hoist=True)
+                                for member in hostMC_OTHERHOSTS: await member.add_roles(hostMC_COHOSTROLE)
+                            hostMC_FINISHROLE = await ctx.message.guild.create_role(name="Finished " + hostMC_NAME,color=RandomColor(),mentionable=True,hoist=True)
+                            hostMC_CREATORROLE = await ctx.message.guild.create_role(name=hostMC_NAME + " Creator",color=RandomColor(), mentionable=True,hoist=True)
+                            hostMC_VERIFIERROLE = await ctx.message.guild.create_role(name=hostMC_NAME + " Verifier",color=RandomColor(),mentionable=True,hoist=True)
+                            hostMC_CC = await ctx.message.guild.create_category_channel(name=hostMC_NAME)
+                            channelhosto = {
+                                ctx.message.guild.default_role: discord.PermissionOverwrite(send_messages=False),
+                                hostMC_HOSTROLE: discord.PermissionOverwrite(send_messages=True)
+                            }
+                            hostMC_PARTSCHANNEL = await ctx.message.guild.create_text_channel(name="parts",category=hostMC_CC,overwrites=channelhosto)
+                            hostMC_UPDATESCHANNEL = await ctx.message.guild.create_text_channel(name="updates",category=hostMC_CC,overwrites=channelhosto)
+                            channelcreatoro = {
+                                ctx.message.guild.default_role: discord.PermissionOverwrite(send_messages=False),
+                                hostMC_CREATORROLE: discord.PermissionOverwrite(send_messages=True),
+                                hostMC_HOSTROLE: discord.PermissionOverwrite(send_messages=True)
+                            }
+                            hostMC_PROGRESSCHANNEL = await ctx.message.guild.create_text_channel(name="progress",category=hostMC_CC,overwrites=channelcreatoro)
+                            hostMC_FINISHEDPARTSCHANNEL = await ctx.message.guild.create_text_channel(name="finished-parts",category=hostMC_CC,overwrites=channelcreatoro)
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-HOST", newvalue=str(hostMC_HOSTROLE.id))
+                            if hostMC_OTHERHOSTS:
+                                datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-COHOST", newvalue=str(hostMC_COHOSTROLE.id))
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-CREATOR", newvalue=str(hostMC_CREATORROLE.id))
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-VERIFIER", newvalue=str(hostMC_VERIFIERROLE.id))
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="ROLE-FINISHED", newvalue=str(hostMC_FINISHROLE.id))
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNELCATEGORY", newvalue=str(hostMC_CC.id))
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-PARTS", newvalue=str(hostMC_PARTSCHANNEL.id))
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-UPDATES",newvalue=str(hostMC_UPDATESCHANNEL.id))
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-PROGRESS",newvalue=str(hostMC_PROGRESSCHANNEL.id))
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="CHANNEL-FINISHEDPARTS",newvalue=str(hostMC_FINISHEDPARTSCHANNEL.id))
 
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="SETTINGS-VISIBILITY", newvalue="True")
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="SETTINGS-INVITING", newvalue="True")
-                        datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="SETTINGS-NOTIFY", newvalue="True")
-
-                        await ResponseMessage(ctx,"Megacollab Created! (MC ID: " + hostMC_ID + ")\n**Name**: " + hostMC_NAME + \
-                                              "\n**Song**: " + hostMC_SONG +
-                                              "\n**Difficulty**: " + hostMC_DIFFICULTY +
-                                              "\n**Host**: " + ctx.message.author.name +
-                                              "\n**Verifier**: " + mcvn +
-                                              "\n**Parts**: " + str(hostMC_PARTS) +
-                                              "\n**Roles**: " + hostMC_HOSTROLE.mention + " " + hostMC_CREATORROLE.mention +
-                                              " " + hostMC_VERIFIERROLE.mention + " " + hostMC_FINISHROLE.mention +
-                                              "\n**Channels**: " + hostMC_UPDATESCHANNEL.mention + " " + hostMC_PROGRESSCHANNEL.mention +
-                                              " " + hostMC_PARTSCHANNEL.mention + " " + hostMC_FINISHEDPARTSCHANNEL.mention,
-                                              "success")
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="SETTINGS-VISIBILITY", newvalue="True")
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="SETTINGS-INVITING", newvalue="True")
+                            datasettings(file="fp-mc/" + hostMC_ID + ".txt", method="add", newkey="SETTINGS-NOTIFY", newvalue="True")
+                            await MCCount()
+                            await ResponseMessage(ctx,"Megacollab Created! (MC ID: " + hostMC_ID + ")\n**Name**: " + hostMC_NAME + \
+                                                  "\n**Song**: " + hostMC_SONG +
+                                                  "\n**Difficulty**: " + hostMC_DIFFICULTY +
+                                                  "\n**Host**: " + ctx.message.author.name +
+                                                  "\n**Verifier**: " + mcvn +
+                                                  "\n**Parts**: " + str(hostMC_PARTS) +
+                                                  "\n**Roles**: " + hostMC_HOSTROLE.mention + " " + hostMC_CREATORROLE.mention +
+                                                  " " + hostMC_VERIFIERROLE.mention + " " + hostMC_FINISHROLE.mention +
+                                                  "\n**Channels**: " + hostMC_UPDATESCHANNEL.mention + " " + hostMC_PROGRESSCHANNEL.mention +
+                                                  " " + hostMC_PARTSCHANNEL.mention + " " + hostMC_FINISHEDPARTSCHANNEL.mention,
+                                                  "success")
+                        else:
+                            await ResponseMessage(ctx,"You are already hosting Megacollab(s)!","failed")
                 elif hostServerResponse == 2:
                     await ResponseMessage(ctx,"Megacollab Server Creation not supported yet!","failed")
             else:
@@ -1147,6 +937,8 @@ async def disbandmc(ctx):
                             datasettings(file="fp-mcdir.txt",method="remove",line=mcc[8])
                             os.remove("fp-mc/" + mcc[8] + ".txt")
                             shutil.rmtree("fp-mc/" + mcc[8])
+                            MCHoster(user=ctx.author,method="subtract")
+                            await MCCount()
                             await ResponseMessage(ctx,"Megacollab disbanded.","success")
                 else:
                     await ResponseMessage(ctx,"","failed","nothost")
@@ -1532,6 +1324,18 @@ async def absolveactivity(ctx):
             await ResponseMessage(ctx,"","failed","botlacksperms")
     else:
         await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+
+@client.command(pass_context=True)
+async def mclimitbypass(ctx,buser,bypassnum):
+    if str(ctx.author.id) == "172861416364179456":
+        buser = GetMember(buser,ctx.guild)
+        if buser is not None:
+            bnv = True
+            try: bypassnum = int(bypassnum)
+            except: bnv = False
+            if bnv:
+                MCHoster(user=buser,method="bypasslimit",newlimit=bypassnum)
+                await ResponseMessage(ctx,buser.name + " can now host up to " + str(bypassnum) + " Megacollab(s)","success")
 
 
 @client.command(pass_context=True)
