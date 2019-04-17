@@ -1,9 +1,10 @@
-import discord, asyncio, sys, os, random, datetime,copy, pickle, traceback, shutil
+import discord, asyncio, sys, os, random, datetime,copy, pickle, traceback, shutil, re
 from discord.ext import commands
 
 Client = discord.Client()
 bot_prefix= "??"
 client = commands.Bot(command_prefix=bot_prefix)
+client.remove_command("help")
 
 s = None
 try: s = open("pass.txt","r")
@@ -11,7 +12,7 @@ except: sys.exit("[Error] pass.txt needed for Secret")
 sl = []
 for l in s: sl.append(l.replace("\n",""))
 SECRET = sl[0]
-client.remove_command('help')
+
 
 # https://discordapp.com/api/oauth2/authorize?client_id=558890112855834624&permissions=0&scope=bot
 
@@ -1435,6 +1436,46 @@ async def ctest(ctx):
     if str(ctx.author.id) == "172861416364179456":
         mcc = await MCContext(ctx)
         await FinishPart(ctx.author,mcc)
+
+
+@client.command(pass_context=True)
+async def help(ctx):
+    hm = "**Finish Part Bot** by GunnerBones#2102\n\n" \
+         "**??host** - [Administrator]\n" \
+         "Hosts a new Megacollab\n" \
+         "**??generateparts** - [Host]\n" \
+         "Generates the Parts list. Use this command in #parts of the Megacollab\n" \
+         "**??mcsettings** - [Host]\n" \
+         "Edits settings of the Megacollab\n" \
+         "**??configpart** <Part Position> - [Host]\n" \
+         "Edits Part information, like Creators, Status, etc\n" \
+         "**??mypart** - [MC Creators]\n" \
+         "Shows information about your part\n" \
+         "**??mcinvitesallow** <Server Name> - [Host]\n" \
+         "If Server Invites are on, users who type ??openmcs will be able to join this Megacollab\n" \
+         "**??mcinvitesunallow** <Server Name> - [Host]\n" \
+         "Removes a Server from the Server Invites list\n" \
+         "**??openmcs** - [Anyone]\n" \
+         "Lists available Megacollabs to join\n" \
+         "**??transferhost** <User> - [Host]\n" \
+         "Transfers Host ownership to someone else\n" \
+         "**??disbandmc** - [Host]\n" \
+         "Disbands the Megacollab\n" \
+         "**??finishmc** - [Host]\n" \
+         "When all Parts are finished, this will complete the Megacollab\n" \
+         "**??submitpart** <Level ID> - [MC Creators]\n" \
+         "When you have finished your part, submit the ID for the Hosts to use; Submitting new IDs replaces the previous ones\n" \
+         "**??partsubmissions** - [Host]\n" \
+         "Shows all submitted parts from the Creators\n" \
+         "**??absolveactivity** - [Host]\n" \
+         "If FINISH PART notifications are on and set to monitor activity, this will reset the activity countdown\n" \
+         "**??myportfolio** - [Anyone]\n" \
+         "Shows your Portfolio that will be used for Hosts considering Creators\n" \
+         "**??editportfolio** - [Anyone]\n" \
+         "Edits your Portfolio\n" \
+         "**??findportfolio** <User> - [Anyone]\n" \
+         "Finds a User's Portfolio"
+    await ResponseMessage(ctx,hm,"success")
 
 
 client.run(SECRET)
