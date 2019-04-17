@@ -1496,14 +1496,16 @@ async def bypasses(ctx):
 @client.command(pass_context=True)
 async def toggleserverallow(ctx,tserver):
     if str(ctx.author.id) == "172861416364179456":
-        if not isnumber(tserver):
+        if isnumber(tserver):
             ts = datasettings(file="fp-allowedservers.txt",method="get",line=tserver)
             if ts is None:
                 datasettings(file="fp-allowedservers.txt",method="add",newkey=tserver,newvalue="ALLOWED")
-                await ResponseMessage(ctx,tserver + " added to Allowed Servers","success")
+                await ctx.message.add_reaction(CHAR_SUCCESS)
+                await ctx.author.send(tserver + " added to Allowed Servers")
             else:
                 datasettings(file="fp-allowedservers.txt",method="remove",line=tserver)
-                await ResponseMessage(ctx, tserver + " removed from Allowed Servers", "success")
+                await ctx.message.add_reaction(CHAR_SUCCESS)
+                await ctx.author.send(tserver + " removed from Allowed Servers")
 
 
 @client.command(pass_context=True)
