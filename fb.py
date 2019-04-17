@@ -32,6 +32,10 @@ EMOJI_PROGRESS = "<:progress:560341884992487425>"
 EMOJI_FINISHED = "<:finished:560341892881973248>"
 statusEmoji = {"empty":EMOJI_EMPTY,"assigned":EMOJI_ASSIGNED,"progress":EMOJI_PROGRESS,"finished":EMOJI_FINISHED}
 
+def isnumber(n):
+    try: nn = int(n); return True
+    except: return False
+
 def datasettings(file,method,line="",newvalue="",newkey=""):
     """
     :param file: (str).txt
@@ -949,6 +953,42 @@ async def disbandmc(ctx):
     else:
         await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
 
+@client.command(pass_context=True)
+async def finishmc(ctx):
+    if ctx.guild:
+        if BotHasPermissions(ctx):
+            mcc = await MCContext(ctx)
+            if mcc is not None:
+                if IsHost(ctx,mcc):
+                    mcAFN = True
+                    for n in range(1, int(mcc[3]) + 1):
+                        mcPS = datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt", method="get",
+                                            line="STATUS")
+                        if mcPS.lower() != "finished": mcAFN = False
+                    if mcAFN:
+                        mcV = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="VERIFIER")
+                        mcV = GetMember(mcV,ctx.guild)
+                        if mcV is not None:
+                            mcFR = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="ROLE-FINISHED")
+                            mcFR = ctx.guild.get_role(mcFR)
+                            if mcFR is not None: await mcFR.edit(name="Was in " + mcc[0])
+                            mcCR = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="ROLE-CREATOR")
+                            mcCR = ctx.guild.get_role(mcCR)
+                            if mcCR is not None: await mcCR.delete()
+                            await Update(mcc,"The Host has confirmed the Megacollab is finished. It is now up to **" + mcV.name + "** to Verify!")
+                            await mcV.send("**" + mcV.name + "**, you are now up to Verify " + mcc[0] + "!")
+                        else:
+                            await ResponseMessage(ctx,"You have not chosen a Verifier yet!","failed")
+                    else:
+                        await ResponseMessage(ctx,"Every Part in " + mcc[0] + " is not Finished!","failed")
+                else:
+                    await ResponseMessage(ctx,"","failed","nothost")
+            else:
+                await ResponseMessage(ctx,"","failed","nomc")
+        else:
+            await ResponseMessage(ctx,"","failed","botlacksperms")
+    else:
+        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
 
 @client.command(pass_context=True)
 async def generateparts(ctx):
@@ -1009,6 +1049,12 @@ async def configpart(ctx,partnum):
                             datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(partnum) + ".txt", method="change", line="PARTDESC", newvalue=partR[4][2])
                             await RefreshParts(mcc)
                             await ResponseMessage(ctx,"Part config Updated.","success")
+                            mcAFN = True
+                            for n in range(1, int(mcc[3]) + 1):
+                                mcPS = datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt", method="get",
+                                                    line="STATUS")
+                                if mcPS.lower() != "finished": mcAFN = False
+                            if mcAFN: await Update(mcc,"All Parts in " + mcc[0] + " are FINISHED!!!")
                     else:
                         await ResponseMessage(ctx, "Either this is an Invalid Part, or you have not generated Parts yet!", "failed")
                 else:
@@ -1032,9 +1078,15 @@ async def mcsettings(ctx):
                     msVisibility = datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="SETTINGS-VISIBILITY")
                     msInviting = datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="SETTINGS-INVITING")
                     msNotify = datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="SETTINGS-NOTIFY")
+                    msName = datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="NAME")
+                    msOH = StrToList(LODUToStrName(StrToLODU(datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="OTHERHOSTS"),ctx.guild)))
+                    msVerifier = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="VERIFIER")
                     msR = await ParameterResponseEmbed(ctx,"Megacollab Settings for " + mcc[0],[["Channels are Visibile to Everyone","boolean",msVisibility,False],
                                                                                                 ["Creators can find this MC if Parts are Open","boolean",msInviting,False],
-                                                                                                ["Slacking Creators are notified to Finish Parts","boolean",msNotify,False]])
+                                                                                                ["Slacking Creators are notified to Finish Parts","boolean",msNotify,False],
+                                                                                                ["Name","string",msName,False],
+                                                                                                ["Other Hosts","list of discord users",msOH,False],
+                                                                                                ["Verifier","discord user",msVerifier,False]])
                     if not msR: await ResponseMessage(ctx, "", "failed", "invalidparams")
                     else:
                         msVisibility = msR[0][2]
@@ -1045,12 +1097,52 @@ async def mcsettings(ctx):
                         msChannelFinishedParts = GetChannel(ctx.message.guild,datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="CHANNEL-FINISHEDPARTS"))
                         mso = discord.PermissionOverwrite(read_messages=False)
                         if msVisibility.lower() == "true": mso = discord.PermissionOverwrite(read_messages=True)
-                        if msChannelParts is not None: await msChannelParts.set_permissions(ctx.message.guild.default_role, mso)
-                        if msChannelUpdates is not None: await msChannelUpdates.set_permissions(ctx.message.guild.default_role, mso)
-                        if msChannelProgress is not None: await msChannelProgress.set_permissions(ctx.message.guild.default_role, mso)
-                        if msChannelFinishedParts is not None: await msChannelFinishedParts.set_permissions(ctx.message.guild.default_role, mso)
+                        if msChannelParts is not None: await msChannelParts.set_permissions(ctx.message.guild.default_role, overwrite=mso)
+                        if msChannelUpdates is not None: await msChannelUpdates.set_permissions(ctx.message.guild.default_role, overwrite=mso)
+                        if msChannelProgress is not None: await msChannelProgress.set_permissions(ctx.message.guild.default_role, overwrite=mso)
+                        if msChannelFinishedParts is not None: await msChannelFinishedParts.set_permissions(ctx.message.guild.default_role, overwrite=mso)
                         datasettings(file="fp-mc/" + mcc[8] + ".txt", method="change", line="SETTINGS-INVITING", newvalue=msR[1][2])
                         datasettings(file="fp-mc/" + mcc[8] + ".txt", method="change", line="SETTINGS-NOTIFY", newvalue=msR[2][2])
+                        msName = msR[3][2]
+                        msOldName = datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="NAME")
+                        if msOldName.lower() == msName.lower(): msName = msOldName
+                        datasettings(file="fp-mc/" + mcc[8] + ".txt", method="change", line="NAME", newvalue=msName)
+                        msCC = ctx.guild.get_channel(datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="CHANNELCATEGORY"))
+                        if msCC is not None: await msCC.edit(name=msName)
+                        msRoleFinished = ctx.guild.get_role(datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="ROLE-FINISHED"))
+                        if msRoleFinished is not None: await msRoleFinished.edit(name="Finished " + msName)
+                        msRoleCreator = ctx.guild.get_role(datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="ROLE-CREATOR"))
+                        if msRoleCreator is not None: await msRoleCreator.edit(name=msName + " Creator")
+                        msRoleVerifier = ctx.guild.get_role(datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="ROLE-VERIFIER"))
+                        if msRoleVerifier is not None: await msRoleVerifier.edit(name=msName + " Verifier")
+                        msRoleHost = ctx.guild.get_role(datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="ROLE-HOST"))
+                        if msRoleHost is not None: await msRoleHost.edit(name=msName + " Host")
+                        msRoleCohost = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="ROLE-COHOST")
+                        if msRoleCohost is not None:
+                            msRoleCohost = ctx.guild.get_role(msRoleCohost)
+                            if msRoleCohost is not None: await msRoleCohost.edit(name=msName + " Co-Host")
+                        msOH = msR[4][2]
+                        if msOH is not None:
+                            if str(msOH) != "[]" and str(msOH) != "['None']":
+                                datasettings(file="fp-mc/" + mcc[8] + ".txt", method="change", line="OTHERHOSTS",
+                                             newvalue=LODUToStr(msOH))
+                                if msRoleCohost is not None:
+                                    msRoleCohost = ctx.guild.get_role(msRoleCohost)
+                                    if msRoleCohost is not None:
+                                        for member in ctx.guild.members:
+                                            if msRoleCohost in member.roles: await member.remove_roles(msRoleCohost)
+                                    for nh in msOH: await nh.add_roles(msRoleCohost)
+                        msVerifier = msR[5][2]
+                        if msVerifier is not None:
+                            try: msVT = msVerifier.id
+                            except: msVerifier = GetMember(msVerifier,ctx.guild)
+                            datasettings(file="fp-mc/" + mcc[8] + ".txt", method="change", line="VERIFIER",
+                                         newvalue=str(msVerifier.id))
+                            msOldVerifier = GetMember(datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="VERIFIER"),ctx.guild)
+                            if msOldVerifier.id != msVerifier.id:
+                                if msRoleVerifier in msOldVerifier.roles: await msOldVerifier.remove_roles(msRoleVerifier)
+                                if msRoleVerifier not in msVerifier.roles: await msVerifier.add_roles(msRoleVerifier)
+                        await ResponseMessage(ctx,"MC Settings updated.","success")
                 else:
                     await ResponseMessage(ctx,"","failed","nothost")
             else:
@@ -1081,7 +1173,7 @@ async def mcinvitesallow(ctx,iaserver):
                         else:
                             await ResponseMessage(ctx, "Invalid Server!", "failed")
                     else:
-                        await ResponseMessage(ctx,"Open MC Invites are not Allowed! *Type ??mcsettings to change this*")
+                        await ResponseMessage(ctx,"Open MC Invites are not Allowed! *Type ??mcsettings to change this*","failed")
                 else:
                     await ResponseMessage(ctx,"","failed","nothost")
             else:
@@ -1111,7 +1203,7 @@ async def mcinvitesunallow(ctx,iaserver):
                         else:
                             await ResponseMessage(ctx, "Invalid Server!", "failed")
                     else:
-                        await ResponseMessage(ctx,"Open MC Invites are not Allowed! *Type ??mcsettings to change this*")
+                        await ResponseMessage(ctx,"Open MC Invites are not Allowed! *Type ??mcsettings to change this*","failed")
                 else:
                     await ResponseMessage(ctx,"","failed","nothost")
             else:
