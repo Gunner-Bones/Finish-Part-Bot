@@ -634,11 +634,16 @@ def Portfolio(user):
     return pE
 
 async def FinishPart(user,mc):
-    await user.send("Finish Part Bot reminds you to Finish your Part in **" + mc[0] + "**!")
+    try: await user.send("Finish Part Bot reminds you to Finish your Part in **" + mc[0] + "**!")
+    except discord.errors.Forbidden:
+        fpH = GetMemberGlobal(mc[6])
+        try: await fpH.send(user.name + " has blocked Finish Part Bot when being reminded to finish their part in " + mc[0] + "!")
+        except: pass
     fpimage = random.choice(os.listdir("goodstuff/"))
     with open("goodstuff/" + fpimage,"rb") as fpi:
         fpfile = discord.File(fp=fpi)
-        await user.send(file=fpfile)
+        try: await user.send(file=fpfile)
+        except: pass
     print("Reminded " + user.name + " to finish for " + mc[0])
 
 async def Update(mcc,mes):
@@ -712,6 +717,12 @@ async def on_ready():
     print("Connected Guilds: " + sl[:len(sl) - 2])
     await MCCount()
 
+@client.event
+async def on_guild_join(guild):
+    asf = False
+    for asi in alldatakeys(file="fp-allowedservers.txt"):
+        if asi == str(guild.id): asf = True
+    if not asf: await guild.leave()
 
 @client.event
 async def on_typing(channel,user,when):
@@ -1483,10 +1494,22 @@ async def bypasses(ctx):
         await ctx.author.send(bm)
 
 @client.command(pass_context=True)
-async def ctest(ctx):
+async def toggleserverallow(ctx,tserver):
     if str(ctx.author.id) == "172861416364179456":
-        mcc = await MCContext(ctx)
-        await FinishPart(ctx.author,mcc)
+        if not isnumber(tserver):
+            ts = datasettings(file="fp-allowedservers.txt",method="get",line=tserver)
+            if ts is None:
+                datasettings(file="fp-allowedservers.txt",method="add",newkey=tserver,newvalue="ALLOWED")
+                await ResponseMessage(ctx,tserver + " added to Allowed Servers","success")
+            else:
+                datasettings(file="fp-allowedservers.txt",method="remove",line=tserver)
+                await ResponseMessage(ctx, tserver + " removed from Allowed Servers", "success")
+
+
+@client.command(pass_context=True)
+async def finishpart(ctx):
+    mcc = await MCContext(ctx)
+    if mcc is not None: await FinishPart(ctx.author,mcc)
 
 
 @client.command(pass_context=True)
