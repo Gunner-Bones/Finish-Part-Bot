@@ -95,6 +95,27 @@ def newfile(file):
     f = open(file,"a")
     f.close()
 
+MEDIAFOLDER = "fp-savedmedia/"
+
+async def datamedia(method,message,filename=""):
+    global MEDIAFOLDER
+    """
+    :param method: save,send
+    """
+    savedattachments = []
+    if method == "save":
+        ati = 0
+        for attachment in message.attachments:
+            atype = attachment.filename[attachment.filename.index("."):]
+            await attachment.save(MEDIAFOLDER + str(message.guild.id) + "-" + str(message.id) + "-" + str(ati) + atype)
+            savedattachments.append(MEDIAFOLDER + str(message.guild.id) + "-" + str(message.id) + "-" + str(ati) + atype)
+            ati += 1
+        return savedattachments
+    if method == "send":
+        with open(filename,"rb") as dmi:
+            await message.channel.send(file=discord.File(fp=dmi))
+
+
 def paramquotationlist(p):
     params = []
     while True:
@@ -1389,56 +1410,6 @@ async def mypart(ctx):
     else:
         await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
 
-@client.command(pass_context=True)
-async def submitpart(ctx,part):
-    if ctx.guild:
-        mcc = await MCContext(ctx)
-        if mcc is not None:
-            spt = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="SUBMISSIONPART-" + str(ctx.message.author.id))
-            if spt is None:
-                datasettings(file="fp-mc/" + mcc[8] + ".txt",method="add",newkey="SUBMISSIONPART-" + str(ctx.message.author.id),newvalue=part)
-                await ResponseMessage(ctx,"Part submitted!","success")
-                await mcc[6].send("**" + mcc[6].name + "**, " + ctx.message.author.name + " has submitted a Part for " +
-                                  mcc[0] + ":\n" + part)
-            else:
-                datasettings(file="fp-mc/" + mcc[8] + ".txt", method="change",
-                             line="SUBMISSIONPART-" + str(ctx.message.author.id), newvalue=part)
-                await ResponseMessage(ctx, "Part updated!", "success")
-                await mcc[6].send("**" + mcc[6].name + "**, " + ctx.message.author.name + " has updated a Part for " +
-                                  mcc[0] + ":\n" + part)
-        else:
-            await ResponseMessage(ctx, "", "failed", "nomc")
-    else:
-        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
-
-@client.command(pass_context=True)
-async def partsubmissions(ctx):
-    if ctx.guild:
-        if BotHasPermissions(ctx):
-            mcc = await MCContext(ctx)
-            if mcc is not None:
-                if IsHost(ctx,mcc):
-                    psList = []
-                    for data in alldatakeys("fp-mc/" + mcc[8] + ".txt"):
-                        if data.startswith("SUBMISSIONPART-"):
-                            psP = data.split("-"); psCreator = GetMemberGlobal(psP[1])
-                            if psCreator is None: continue
-                            psPart = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line=data)
-                            psList.append([psCreator,psPart])
-                    psM = "All Part submissions for **" + mcc[0] + "**:\n"; psn = 1
-                    for ps in psList:
-                        psM += "[" + str(psn) + "] " + ps[0] + " - " + ps[1] + "\n"
-                        psn += 1
-                    await ResponseMessage(ctx,psM,"success")
-                else:
-                    await ResponseMessage(ctx,"","failed","nothost")
-            else:
-                await ResponseMessage(ctx,"","failed","nomc")
-        else:
-            await ResponseMessage(ctx,"","failed","botlacksperms")
-    else:
-        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
-
 
 @client.command(pass_context=True)
 async def absolveactivity(ctx):
@@ -1461,6 +1432,10 @@ async def absolveactivity(ctx):
             await ResponseMessage(ctx,"","failed","botlacksperms")
     else:
         await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+
+
+
+# GB Only Commands
 
 @client.command(pass_context=True)
 async def mcuserlimitbypass(ctx,buser,bypassnum):
@@ -1526,6 +1501,13 @@ async def finishpart(ctx):
 
 
 @client.command(pass_context=True)
+async def testcommand(ctx):
+    if str(ctx.author.id) == "172861416364179456":
+        dm = await datamedia(method="save",message=ctx.message)
+        print(dm)
+        await datamedia(method="send",message=ctx.message,filename=dm[0])
+
+@client.command(pass_context=True)
 async def help(ctx):
     hm = "**Finish Part Bot** by GunnerBones#2102\n\n" \
          "**??host** - [Administrator]\n" \
@@ -1550,10 +1532,6 @@ async def help(ctx):
          "Disbands the Megacollab\n" \
          "**??finishmc** - [Host]\n" \
          "When all Parts are finished, this will complete the Megacollab\n" \
-         "**??submitpart** <Level ID> - [MC Creators]\n" \
-         "When you have finished your part, submit the ID for the Hosts to use; Submitting new IDs replaces the previous ones\n" \
-         "**??partsubmissions** - [Host]\n" \
-         "Shows all submitted parts from the Creators\n" \
          "**??absolveactivity** - [Host]\n" \
          "If FINISH PART notifications are on and set to monitor activity, this will reset the activity countdown\n" \
          "**??myportfolio** - [Anyone]\n" \

@@ -1,3 +1,3 @@
-test = {'dd':'wefwef','wedf':'wefwef'}
-del test["dd"]
-print(test)
+test = "bland.jpg"
+testt = test[test.index("."):]
+print(testt)
