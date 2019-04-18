@@ -1,3 +1,3 @@
-BIO=bones
-VIDEO1=https://www.youtube.com/watch?v=9ul3Pkq2QFI
-VIDEO2=None
+BIO=layout, art, and verifier dude
+VIDEO1=https://www.youtube.com/watch?v=GCL5w3PggWg
+VIDEO2=https://www.youtube.com/watch?v=SnK_maVtnVA

@@ -1,4 +1,3 @@
-test = "wefew"
-print(test.split(","))
-print(isinstance(test,(list,)))
-print(isinstance(test,(str,)))
+test = {'dd':'wefwef','wedf':'wefwef'}
+del test["dd"]
+print(test)
