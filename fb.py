@@ -186,7 +186,7 @@ def GetMemberGlobal(mn):
         except:
             mt = discord.utils.find(lambda m: mn.lower() in m.name.lower(), s.members)
             if mt is not None: return mt
-    return None
+    return client.get_user(mn)
 
 def GetRole(s,rn):
     try:
@@ -412,6 +412,10 @@ async def MCContext(ctx):
         mcd[6] = mchost; mcd[7] = mcserver
         mcd[4] = GetMemberGlobal(mcd[4]); mcd[5] = StrToLODU(mcd[5],ctx.guild)
         if mchost == ctx.author and mcserver == ctx.message.guild: mcsfound.append(mcd)
+        for n in range(1, int(mcd[3]) + 1):
+            nCreators = StrToLODU(datasettings(file="fp-mc/" + mcd[8] + "/PART" + str(n) + ".txt", method="get", line="CREATORS"),ctx.guild)
+            for c in nCreators:
+                if c == ctx.author: mcsfound.append(mcd)
     if not mcsfound: return None
     if len(mcsfound) == 1: return mcsfound[0]
     else:
@@ -1328,68 +1332,71 @@ async def findportfolio(ctx,puser):
 
 @client.command(pass_context=True)
 async def openmcs(ctx):
-    if datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt", method="get", line="BIO") is not None:
-        omc = []
-        for mcid in alldatakeys("fp-mcdir.txt"):
-            mcd = datasettings(file="fp-mcdir.txt",method="get",line=mcid); mcd = mcd.split(";")
-            mcInviting = datasettings(file="fp-mc/" + mcid + ".txt",method="get",line="SETTINGS-INVITING")
-            if mcInviting.lower() == "false": continue
-            mcsRequired = []
-            for mcsdata in alldatakeys("fp-mc/" + mcid + ".txt"):
-                if datasettings(file="fp-mc/" + mcid + ".txt",method="get",line=mcsdata) == "ALLOWEDSERVER":
-                    mcsServer = GetGuild(mcsdata)
-                    if mcsServer is None: continue
-                    else: mcsRequired.append(mcsServer)
-            mcSRM = False
-            if len(mcsRequired) == 0: mcSRM = True
-            else:
-                for mcs in mcsRequired:
-                    for member in mcs.members:
-                        if str(member.id) == str(ctx.message.author.id): mcSRM = True; break
-            if mcSRM:
-                mcd.append(mcid)
-                mcpo = 0
-                for n in range(1, int(mcd[3]) + 1):
-                    mcpStatus = datasettings(file="fp-mc/" + mcid + "/PART" + str(n) + ".txt",method="get",line="STATUS")
-                    if mcpStatus.lower() == "empty": mcpo += 1
-                if mcpo > 0:
-                    mcd.append(mcpo)
-                    omc.append(mcd)
-        if len(omc) > 0:
-            if len(omc) > 5:
-                nomc = []
-                for m in range(1,6):
-                    while True:
-                        smc = omc[random.randint(0,len(omc) - 1)]
-                        if smc not in nomc: nomc.append(smc); break
-                omc = nomc
-            omm = "Here are some MC(s) with open Parts! Which sounds interesting?\n"
-            omll = "A"; omln = 1; omlm = ""; omlk = {1:"A",2:"B",3:"C",4:"D",5:"E"}
-            for mc in omc:
-                omlm += "**" + omll + "** - " + mc[0] + " by " + GetMemberGlobal(mc[6]).name + " [" + str(mc[9]) + " parts open]\n"
-                omln += 1
-                omll = omlk[omln]
-            omMessage = await ctx.message.channel.send(omm + omlm)
-            omRR = await ReactionChoiceMessage(ctx,omMessage,len(omc))
-            await omMessage.clear_reactions()
-            if omRR != 0 and omRR != 7:
-                omCMC = []
-                if len(omc) == 1 and omRR == 6: omCMC = omc[0]
-                else: omCMC = omc[omRR - 1]
-                omHostNote = await ParameterResponseEmbed(ctx,"Send a Message to the Host with your request to join "
-                                                          + omCMC[0] + "?",[["Optional Message","string","No Message Set",False]])
-                if omHostNote is None: ResponseMessage(ctx,"","failed","invalidparams")
+    if BotHasPermissions(ctx):
+        if datasettings(file="fp-portfolio/" + str(ctx.message.author.id) + ".txt", method="get", line="BIO") is not None:
+            omc = []
+            for mcid in alldatakeys("fp-mcdir.txt"):
+                mcd = datasettings(file="fp-mcdir.txt",method="get",line=mcid); mcd = mcd.split(";")
+                mcInviting = datasettings(file="fp-mc/" + mcid + ".txt",method="get",line="SETTINGS-INVITING")
+                if mcInviting.lower() == "false": continue
+                mcsRequired = []
+                for mcsdata in alldatakeys("fp-mc/" + mcid + ".txt"):
+                    if datasettings(file="fp-mc/" + mcid + ".txt",method="get",line=mcsdata) == "ALLOWEDSERVER":
+                        mcsServer = GetGuild(mcsdata)
+                        if mcsServer is None: continue
+                        else: mcsRequired.append(mcsServer)
+                mcSRM = False
+                if len(mcsRequired) == 0: mcSRM = True
                 else:
-                    omHost = GetMemberGlobal(mc[6])
-                    omHostMessage = "**" + omHost.name + "**, " + ctx.message.author.name + \
-                                    " would like to join your Megacollab *" + omCMC[0] + "*!\n"
-                    omHostNR = omHostNote[0][2]
-                    if omHostNR != "No Message Set": omHostMessage += "Message from " + ctx.message.author.name + ": " \
-                                                                      + omHostNR + "\n"
-                    await omHost.send(omHostMessage)
-                    await omHost.send(embed=Portfolio(ctx.message.author))
-                    await ResponseMessage(ctx,"Request to Join sent!","success")
-
+                    for mcs in mcsRequired:
+                        for member in mcs.members:
+                            if str(member.id) == str(ctx.message.author.id): mcSRM = True; break
+                if mcSRM:
+                    mcd.append(mcid)
+                    mcpo = 0
+                    for n in range(1, int(mcd[3]) + 1):
+                        mcpStatus = datasettings(file="fp-mc/" + mcid + "/PART" + str(n) + ".txt",method="get",line="STATUS")
+                        if mcpStatus is None: mcpStatus = "empty"
+                        if mcpStatus.lower() == "empty": mcpo += 1
+                    if mcpo > 0:
+                        mcd.append(mcpo)
+                        omc.append(mcd)
+            if len(omc) > 0:
+                if len(omc) > 5:
+                    nomc = []
+                    for m in range(1,6):
+                        while True:
+                            smc = omc[random.randint(0,len(omc) - 1)]
+                            if smc not in nomc: nomc.append(smc); break
+                    omc = nomc
+                omm = "Here are some MC(s) with open Parts! Which sounds interesting?\n"
+                omll = "A"; omln = 1; omlm = ""; omlk = {1:"A",2:"B",3:"C",4:"D",5:"E",6:"F"}
+                for mc in omc:
+                    omlm += "**" + omll + "** - " + mc[0] + " by " + GetMemberGlobal(mc[6]).name + " [" + str(mc[9]) + " parts open]\n"
+                    omln += 1
+                    omll = omlk[omln]
+                omMessage = await ctx.message.channel.send(omm + omlm)
+                omRR = await ReactionChoiceMessage(ctx,omMessage,len(omc))
+                await omMessage.clear_reactions()
+                if omRR != 0 and omRR != 7:
+                    omCMC = []
+                    if len(omc) == 1 and omRR == 6: omCMC = omc[0]
+                    else: omCMC = omc[omRR - 1]
+                    omHostNote = await ParameterResponseEmbed(ctx,"Send a Message to the Host with your request to join "
+                                                              + omCMC[0] + "?",[["Optional Message","string","No Message Set",False]])
+                    if omHostNote is None: ResponseMessage(ctx,"","failed","invalidparams")
+                    else:
+                        omHost = GetMemberGlobal(mc[6])
+                        omHostMessage = "**" + omHost.name + "**, " + ctx.message.author.name + \
+                                        " would like to join your Megacollab *" + omCMC[0] + "*!\n"
+                        omHostNR = omHostNote[0][2]
+                        if omHostNR != "No Message Set": omHostMessage += "Message from " + ctx.message.author.name + ": " \
+                                                                          + omHostNR + "\n"
+                        await omHost.send(omHostMessage)
+                        await omHost.send(embed=Portfolio(ctx.message.author))
+                        await ResponseMessage(ctx,"Request to Join sent!","success")
+            else:
+                await ResponseMessage(ctx, "", "failed", "botlacksperms")
         else:
             await ResponseMessage(ctx,"There are no Open MCs for you right now! :(","failed")
     else:
