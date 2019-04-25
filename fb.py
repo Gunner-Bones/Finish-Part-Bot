@@ -33,6 +33,8 @@ EMOJI_PROGRESS = "<:progress:560341884992487425>"
 EMOJI_FINISHED = "<:finished:560341892881973248>"
 statusEmoji = {"empty":EMOJI_EMPTY,"assigned":EMOJI_ASSIGNED,"progress":EMOJI_PROGRESS,"finished":EMOJI_FINISHED}
 
+
+
 def isnumber(n):
     try: nn = int(n); return True
     except: return False
@@ -411,27 +413,70 @@ async def MCContext(ctx):
         if mcserver is None: continue
         mcd[6] = mchost; mcd[7] = mcserver
         mcd[4] = GetMemberGlobal(mcd[4]); mcd[5] = StrToLODU(mcd[5],ctx.guild)
-        if mchost == ctx.author and mcserver == ctx.message.guild: mcsfound.append(mcd)
+        if mchost == ctx.author and mcserver == ctx.guild: mcsfound.append(mcd)
         for n in range(1, int(mcd[3]) + 1):
             nCreators = StrToLODU(datasettings(file="fp-mc/" + mcd[8] + "/PART" + str(n) + ".txt", method="get", line="CREATORS"),ctx.guild)
             for c in nCreators:
-                if c == ctx.author: mcsfound.append(mcd)
+                if c == ctx.author and mcserver == ctx.guild and mcd not in mcsfound: mcsfound.append(mcd)
     if not mcsfound: return None
     if len(mcsfound) == 1: return mcsfound[0]
     else:
         iin = 1; mcfmcs = ""
         for mc in mcsfound:
             iil = "**A** - "
-            if iin == 2: iil = "**B* - "
-            if iin == 3: iil = "**C* - "
-            if iin == 4: iil = "**D* - "
-            if iin == 5: iil = "**E* - "
+            if iin == 2: iil = "**B** - "
+            if iin == 3: iil = "**C** - "
+            if iin == 4: iil = "**D** - "
+            if iin == 5: iil = "**E** - "
             mcfmcs += iil + mc[0] + "\n"
-            iil += 1
+            iin += 1
         mcfm = await ctx.message.channel.send("**" + ctx.author.name + "**, which megacollab are you referring to?\n" + mcfmcs)
-        mcmresponse = await ReactionChoiceMessage(ctx,mcfm,iin)
+        mcmresponse = await ReactionChoiceMessage(ctx,mcfm,iin - 1)
         if 1 <= mcmresponse <= 5: return mcsfound[mcmresponse - 1]
         else: return None
+
+async def SimMCContext(sguild,smember,schannel):
+    """
+        0: Name
+        1: Song
+        2: Difficulty
+        3: Parts
+        4: Co-Hosts
+        5: Verifier
+        6: Host
+        7: Server
+        8: ID
+        """
+    mcsfound = []
+    for mcid in alldatakeys("fp-mcdir.txt"):
+        mcd = datasettings(file="fp-mcdir.txt", method="get", line=mcid); mcd = mcd.split(";")
+        mcd.append(mcid)
+        mchost = GetMemberGlobal(mcd[6]); mcserver = GetGuild(mcd[7])
+        if mchost is None: continue
+        if mcserver is None: continue
+        mcd[6] = mchost; mcd[7] = mcserver
+        mcd[4] = GetMemberGlobal(mcd[4]); mcd[5] = StrToLODU(mcd[5], sguild)
+        if mchost == smember and mcserver == sguild: mcsfound.append(mcd)
+        for n in range(1, int(mcd[3]) + 1):
+            nCreators = StrToLODU(
+                datasettings(file="fp-mc/" + mcd[8] + "/PART" + str(n) + ".txt", method="get", line="CREATORS"),
+                sguild)
+            for c in nCreators:
+                if c == smember and mcserver == sguild and mcd not in mcsfound: mcsfound.append(mcd)
+    if not mcsfound: return None
+    if len(mcsfound) == 1:
+        return mcsfound[0]
+    else:
+        iin = 1; mcfmcs = ""
+        for mc in mcsfound:
+            iil = "**A** - "
+            if iin == 2: iil = "**B** - "
+            if iin == 3: iil = "**C** - "
+            if iin == 4: iil = "**D** - "
+            if iin == 5: iil = "**E** - "
+            mcfmcs += iil + mc[0] + "\n"
+            iin += 1
+        await schannel.send("**" + smember.name + "**, which megacollab are you referring to?\n" + mcfmcs)
 
 def AutoMCContext(channel,user):
     """
@@ -760,6 +805,7 @@ async def on_guild_join(guild):
         if asi == str(guild.id): asf = True
     if not asf: await guild.leave()
 
+"""
 @client.event
 async def on_typing(channel,user,when):
     mcc = AutoMCContext(channel,user)
@@ -784,7 +830,10 @@ async def on_typing(channel,user,when):
                 for n in range(1, int(mcc[3]) + 1):
                     nCreators = StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt",method="get",line="CREATORS"),channel.guild)
                     for c in nCreators:
-                        if c not in mcmCreators: mcmCreators.append(c)
+                        if c not in mcmCreators and c is not None:
+                            if isinstance(c,(list,)):
+                                for cc in c: mcmCreators.append(cc)
+                            else: mcmCreators.append(c)
                 for c in mcmCreators:
                     cdt = latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
                     cdv = False
@@ -805,7 +854,7 @@ async def on_typing(channel,user,when):
                     else:
                         cleardata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
                         datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt",method="add",newkey=DatetimeToStr(datetime.datetime.now()),newvalue=str(user.id))
-
+"""
 GLOBALPRM = None
 
 
@@ -1548,6 +1597,13 @@ async def help(ctx):
          "**??findportfolio** <User> - [Anyone]\n" \
          "Finds a User's Portfolio"
     await ResponseMessage(ctx,hm,"success")
+
+@client.command(pass_context=True)
+async def ctest(ctx):
+    if ctx.author.id == 172861416364179456:
+        await SimMCContext(sguild=GetGuild("561985959957233664"),
+                           smember=GetMember("235047481451216906",
+                                             GetGuild("561985959957233664")),schannel=ctx.message.channel)
 
 
 client.run(SECRET)
