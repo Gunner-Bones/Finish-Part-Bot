@@ -94,6 +94,9 @@ def cleardata(file):
     s.truncate(); s.close()
 
 def newfile(file):
+    s = None
+    try: s = open(file, "r")
+    except: return None
     f = open(file,"a")
     f.close()
 
@@ -722,12 +725,19 @@ async def FinishPart(user,mc):
         except: pass
     print("Reminded " + user.name + " to finish for " + mc[0])
 
-async def Update(mcc,mes):
+async def Update(mcc,mes,tag=False):
     uChannel = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="CHANNEL-UPDATES")
     if uChannel is None: return None
     uChannel = GetChannel(GetGuild(str(mcc[7].id)),uChannel)
     if uChannel is None: return None
-    await uChannel.send("[" + DatetimeToStr(datetime.datetime.now()) + "] " + mes)
+    if not tag: await uChannel.send("[" + DatetimeToStr(datetime.datetime.now()) + "] " + mes)
+    else:
+        uCreatorRole = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="ROLE-CREATOR")
+        if uCreatorRole is None: await uChannel.send("[" + DatetimeToStr(datetime.datetime.now()) + "] " + mes); return
+        uCreatorRole = GetRole(GetGuild(str(mcc[7].id)),uCreatorRole)
+        if uCreatorRole is None: await uChannel.send("[" + DatetimeToStr(datetime.datetime.now()) + "] " + mes); return
+        await uChannel.send("[" + DatetimeToStr(datetime.datetime.now()) + "] " + mes + "\n" + uCreatorRole.mention)
+
 
 async def MCCount():
     mccount = 0
@@ -805,56 +815,6 @@ async def on_guild_join(guild):
         if asi == str(guild.id): asf = True
     if not asf: await guild.leave()
 
-"""
-@client.event
-async def on_typing(channel,user,when):
-    mcc = AutoMCContext(channel,user)
-    if mcc is not None:
-        mNotify = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="SETTINGS-NOTIFY")
-        if mNotify.lower() == "true":
-            mdt = datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt",method="get",line="TEST")
-            if mdt is None:
-                newfile("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt")
-                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt",method="add",newkey=DatetimeToStr(datetime.datetime.now()),newvalue=str(user.id))
-            mdl = latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt")
-            if mdl != "TEST":
-                mdlt = StrToDatetime(mdl); mdt = StrToDatetime(DatetimeToStr(datetime.datetime.now()))
-                if mdt > mdlt:
-                    datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt",method="remove",line=mdl)
-                    datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(user.id) + ".txt",method="add",
-                                 newkey=DatetimeToStr(mdlt),newvalue=str(channel.id))
-            mcmd = StrToDatetime(latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/MAIN.txt"))
-            if mcmd + datetime.timedelta(days=5) < datetime.datetime.now():
-                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/MAIN.txt",method="add",newkey=DatetimeToStr(datetime.datetime.now()),newvalue="ACTIVITY CHECK")
-                mcmCreators = []
-                for n in range(1, int(mcc[3]) + 1):
-                    nCreators = StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt",method="get",line="CREATORS"),channel.guild)
-                    for c in nCreators:
-                        if c not in mcmCreators and c is not None:
-                            if isinstance(c,(list,)):
-                                for cc in c: mcmCreators.append(cc)
-                            else: mcmCreators.append(c)
-                for c in mcmCreators:
-                    cdt = latestdata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
-                    cdv = False
-                    if cdt is None: cdv = True
-                    if not cdv:
-                        cdt = StrToDatetime(cdt)
-                        if cdt + datetime.timedelta(days=2) < datetime.datetime.now(): cdv = True
-                    if cdv:
-                        nsd = datasettings(file="fp-vars.txt",method="get",line="NOTIFSAFETYDEBUG")
-                        if nsd.lower() == "false":
-                            await FinishPart(c,mcc)
-                            datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt", method="add",
-                                         newkey=DatetimeToStr(datetime.datetime.now()), newvalue=str(user.id))
-                        else:
-                            cleardata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
-                            datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt", method="add",
-                                         newkey=DatetimeToStr(datetime.datetime.now()), newvalue=str(user.id))
-                    else:
-                        cleardata("fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt")
-                        datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/" + str(c.id) + ".txt",method="add",newkey=DatetimeToStr(datetime.datetime.now()),newvalue=str(user.id))
-"""
 GLOBALPRM = None
 
 
@@ -1549,19 +1509,95 @@ async def toggleserverallow(ctx,tserver):
                 await ctx.message.add_reaction(CHAR_SUCCESS)
                 await ctx.author.send(tserver + " removed from Allowed Servers")
 
+@client.command(pass_context=True)
+async def checkevery(ctx,cdays):
+    if ctx.guild:
+        if BotHasPermissions(ctx):
+            mcc = await MCContext(ctx)
+            if mcc is not None:
+                if IsHost(ctx,mcc):
+                    if isnumber(cdays):
+                        cedays = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="CHECKDAYS")
+                        if cedays is None:
+                            datasettings(file="fp-mc/" + mcc[8] + ".txt",method="add",newkey="CHECKDAYS",newvalue=str(cdays))
+                            await ResponseMessage(ctx,"Part Reminder intervals set to every **" + str(cdays) + "** days!","success")
+                        else:
+                            datasettings(file="fp-mc/" + mcc[8] + ".txt",method="change",line="CHECKDAYS",newvalue=str(cdays))
+                            await ResponseMessage(ctx,
+                                                  "Part Reminder intervals changed to every **" + str(cdays) + "** days!","success")
+                    else:
+                        await ResponseMessage(ctx,"","failed","invalidparams")
+                else:
+                    await ResponseMessage(ctx,"","failed","nothost")
+            else:
+                await ResponseMessage(ctx,"","failed","nomc")
+        else:
+            await ResponseMessage(ctx,"","failed","botlacksperms")
+    else:
+        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+
+@client.command(pass_context=True)
+async def progressupdate(ctx):
+    if ctx.guild:
+        if BotHasPermissions(ctx):
+            mcc = await MCContext(ctx)
+            if mcc is not None:
+                if IsHost(ctx,mcc):
+                    punumber = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="UPDATES")
+                    if punumber is None: punumber = "1"
+                    else: punumber = int(punumber) + 1; punumber = str(punumber)
+                    puDAYS = 5
+                    puDESCRIPTION = "Finish Gameplay, show Decoration progress, etc"
+                    puVIDREQUIRED = False
+                    puPHOTOSREQUIRED = True
+                    puR = await ParameterResponseEmbed(ctx,"Progress Update " + punumber,parameters=[["Check In (Days)","integer",puDAYS,False],
+                                                                                                     ["Description of Progress Needed","string",puDESCRIPTION,True],
+                                                                                                     ["Video Required","boolean",puVIDREQUIRED,False],
+                                                                                                     ["Photos Required","boolean",puPHOTOSREQUIRED],False])
+                    if not puR: await ResponseMessage(ctx, "", "failed", "invalidparams")
+                    else:
+                        puDAYS = int(puR[0][2])
+                        puDESCRIPTION = puR[1][2]
+                        puVIDREQUIRED = puR[2][2]
+                        puPHOTOSREQUIRED = puR[3][2]
+                        if not puVIDREQUIRED and not puPHOTOSREQUIRED:
+                            await ResponseMessage(ctx,"You need to require either Video or Photos for a Progress Report!","failed")
+                        else:
+                            if puDAYS < 1:
+                                await ResponseMessage(ctx,"Invalid days!","failed")
+                            else:
+                                newfile("fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + punumber + ".txt")
+                                if datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="UPDATES") is None:
+                                    datasettings(file="fp-mc/" + mcc[8] + ".txt",method="add",newkey="UPDATES",newvalue="1")
+                                else:
+                                    datasettings(file="fp-mc/" + mcc[8] + ".txt", method="change", line="UPDATES",newvalue=str(punumber))
+                                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + punumber + ".txt",method="add",newkey="DESCRIPTION",newvalue=puDESCRIPTION)
+                                puDUEDATE = datetime.datetime.now() + datetime.timedelta(days=puDAYS)
+                                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + punumber + ".txt",method="add",newkey="DUEDATE",newvalue=DatetimeToStr(puDUEDATE))
+                                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + punumber + ".txt",method="add",newkey="VIDREQUIRED",newvalue=str(puVIDREQUIRED))
+                                datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + punumber + ".txt",method="add",newkey="PHOTOSREQUIRED",newvalue=str(puPHOTOSREQUIRED))
+                                await ResponseMessage(ctx,"Progress Update " + punumber + " created!","success")
+                                await Update(mcc,"**Progress Update " + punumber + "**\n"
+                                                "Progress Description: " + puDESCRIPTION + "\n"
+                                                "Videos Required: " + str(puVIDREQUIRED) + "\n"
+                                                "Photos Required: " + str(puPHOTOSREQUIRED) + "\n"
+                                                "**Due Date:** " + DatetimeToStr(puDUEDATE) + "\n"
+                                                "*Use ??sendprogress to send progress*")
+                else:
+                    await ResponseMessage(ctx,"","failed","nothost")
+            else:
+                await ResponseMessage(ctx,"","failed","nomc")
+        else:
+            await ResponseMessage(ctx,"","failed","botlacksperms")
+    else:
+        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+
 
 @client.command(pass_context=True)
 async def finishpart(ctx):
     mcc = await MCContext(ctx)
     if mcc is not None: await FinishPart(ctx.author,mcc)
 
-
-@client.command(pass_context=True)
-async def testcommand(ctx):
-    if str(ctx.author.id) == "172861416364179456":
-        dm = await datamedia(method="save",message=ctx.message)
-        print(dm)
-        await datamedia(method="send",message=ctx.message,filename=dm[0])
 
 @client.command(pass_context=True)
 async def help(ctx):
@@ -1582,6 +1618,8 @@ async def help(ctx):
          "Removes a Server from the Server Invites list\n" \
          "**??openmcs** - [Anyone]\n" \
          "Lists available Megacollabs to join\n" \
+         "**??checkevery** <Days> - [Host]\n" \
+         "Sets the days interval in which the bot will remind unfinished creators to Finish Part\n" \
          "**??transferhost** <User> - [Host]\n" \
          "Transfers Host ownership to someone else\n" \
          "**??disbandmc** - [Host]\n" \
@@ -1604,6 +1642,12 @@ async def ctest(ctx):
         await SimMCContext(sguild=GetGuild("561985959957233664"),
                            smember=GetMember("235047481451216906",
                                              GetGuild("561985959957233664")),schannel=ctx.message.channel)
+@client.command(pass_context=True)
+async def ctest2(ctx):
+    if str(ctx.author.id) == "172861416364179456":
+        dm = await datamedia(method="save",message=ctx.message)
+        print(dm)
+        await datamedia(method="send",message=ctx.message,filename=dm[0])
 
 
 client.run(SECRET)

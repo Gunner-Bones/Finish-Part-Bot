@@ -1,3 +1,2 @@
-test = "bland.jpg"
-testt = test[test.index("."):]
-print(testt)
+test = False
+print("hello mr " + str(test))
