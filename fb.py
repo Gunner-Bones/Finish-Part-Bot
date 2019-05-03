@@ -240,7 +240,7 @@ async def ResponseMessage(ctx,response,messagereaction,preset=""):
         pi = {"authorlacksperms":"You do not have Permission to perform this!",
               "botlacksperms":client.user.name + " does not have Permissions to perform this!",
               "invalidparams":"Invalid parameters!",
-              "nomc":"You are not hosting a Megacollab here!",
+              "nomc":"You are not in a Megacollab here!",
               "nothost":"You are not the Host of this Megacollab!"}
         response = pi[preset]
     await ctx.message.channel.send("**" + ctx.author.name + "**, " + response)
@@ -285,11 +285,12 @@ def PREListCompare(parameters,newparameters):
 
 newparametersglobal = {}
 responsedonecalledglobal = {}
+parammediaglobal = {}
 
 async def ParameterResponseEmbed(ctx,title,parameters: list):
-    global newparametersglobal; global responsedonecalledglobal
+    global newparametersglobal; global responsedonecalledglobal; global parammediaglobal
     paramauthor = ctx.author
-    # parameters: [['name','string',"",True],['parts','integer',0,True],['creators','list',[],False]]
+    # parameters: [['name','string',"",True],['parts','integer',0,True],['creators','list',[],False],['progress','media','None',False]]
     # param types: string, integer, list, discord user, list of discord users, boolean
     if len(parameters) == 0: return []
     newparameters = copy.deepcopy(parameters); newparametersglobal.update({ctx.author.id:newparameters})
@@ -301,6 +302,7 @@ async def ParameterResponseEmbed(ctx,title,parameters: list):
             if param[3]: paramr = " *"
             paramvalue = ""
             if param[1] == "string": paramvalue = param[2]
+            if param[1] == 'media': paramvalue = param[2]
             if param[1] == "boolean": paramvalue = param[2]
             if param[1] == "integer": paramvalue = str(param[2])
             if param[1] == "list":
@@ -325,14 +327,26 @@ async def ParameterResponseEmbed(ctx,title,parameters: list):
             newparameters[newparameters.index(param)].append(newparameters.index(param))
     responseembedmessage = await ctx.message.channel.send(embed=responseembed)
     responsedonecalled = False; responsedonecalledglobal.update({ctx.author.id:responsedonecalled})
+    parammediaglobal.update({ctx.author.id:None})
     def check(message):
         if message.author == paramauthor:
-            global newparametersglobal; global responsedonecalledglobal
+            global newparametersglobal; global responsedonecalledglobal; global parammediaglobal
             newparameters = newparametersglobal[message.author.id]
             if str(message.content).startswith(">>done"): responsedonecalledglobal[message.author.id] = True; return True
             if str(message.content).startswith(">>param "):
                 paramresponse = str(message.content).replace(">>param",""); paramq = paramquotationlist(paramresponse)
                 if paramq is None: return False
+                if len(paramq) == 1:
+                    for p in newparameters:
+                        if str(p[0]).lower() == str(paramq[0]).lower():
+                            if p[1] == "media":
+                                parammediamessage = ""
+                                if message.attachments:
+                                    for mat in message.attachments: parammediamessage += "Media "
+                                    parammediaglobal[ctx.author.id] = [message,p[4],p[0]]
+                                    responseembed.set_field_at(p[4],name=p[0],value=parammediamessage,inline=False)
+                                    return True
+                            else: return False
                 if len(paramq) != 2: return False
                 for p in newparameters:
                     if str(p[0]).lower() == str(paramq[0]).lower():
@@ -370,6 +384,17 @@ async def ParameterResponseEmbed(ctx,title,parameters: list):
         except asyncio.TimeoutError:
             return []
         else:
+            if parammediaglobal[ctx.author.id] is not None:
+                mats = await datamedia(method="save",message=parammediaglobal[ctx.author.id][0])
+                for p in newparameters:
+                    if str(p[0]).lower() == str(parammediaglobal[ctx.author.id][2]).lower():
+                        matm = ""
+                        for an in mats: matm += an + " "
+                        responseembed.set_field_at(parammediaglobal[ctx.author.id][1],
+                                                   name=parammediaglobal[ctx.author.id][2], value=matm, inline=False)
+                        newparameters[newparameters.index(p)][2] = mats
+                        parammediaglobal[ctx.author.id] = None
+                        break
             await responseembedmessage.edit(embed=responseembed)
             await message.add_reaction(CHAR_SUCCESS)
     if not PREListCompare(parameters,newparametersglobal[ctx.author.id]):
@@ -383,6 +408,8 @@ async def ParameterResponseEmbed(ctx,title,parameters: list):
         if gd == ctx.author.id: del newparametersglobal[gd]
     for gd in list(responsedonecalledglobal):
         if gd == ctx.author.id: del responsedonecalledglobal[gd]
+    for gd in list(parammediaglobal):
+        if gd == ctx.author.id: del parammediaglobal[gd]
     return newparametersreturn
 
 def RandomColor():
@@ -1591,6 +1618,18 @@ async def progressupdate(ctx):
             await ResponseMessage(ctx,"","failed","botlacksperms")
     else:
         await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
+
+@client.command(pass_context=True)
+async def submitprogress(ctx):
+    if ctx.guild:
+        mcc = await MCContext(ctx)
+        if mcc is not None:
+            spnumber = datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="UPDATES")
+
+        else:
+            await ResponseMessage(ctx, "", "failed", "nomc")
+    else:
+        await ResponseMessage(ctx, "You need to be in a Server to perform this!", "failed")
 
 
 @client.command(pass_context=True)
