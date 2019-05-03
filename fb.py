@@ -1477,65 +1477,6 @@ async def absolveactivity(ctx):
         await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
 
 
-
-# GB Only Commands
-
-@client.command(pass_context=True)
-async def mcuserlimitbypass(ctx,buser,bypassnum):
-    if str(ctx.author.id) == "172861416364179456":
-        buser = GetMember(buser,ctx.guild)
-        if buser is not None:
-            bnv = True
-            try: bypassnum = int(bypassnum)
-            except: bnv = False
-            if bnv:
-                MCHoster(user=buser,method="bypasslimit",newlimit=bypassnum)
-                await ResponseMessage(ctx,buser.name + " can now host up to " + str(bypassnum) + " Megacollab(s)","success")
-
-@client.command(pass_context=True)
-async def mcserverlimitbypass(ctx,bserver,bypassnum):
-    if str(ctx.author.id) == "172861416364179456":
-        bserver = GetGuild(bserver)
-        if bserver is not None:
-            bnv = True
-            try: bypassnum = int(bypassnum)
-            except: bnv = False
-            if bnv:
-                MCServer(server=bserver,method="bypasslimit",newlimit=bypassnum)
-                await ResponseMessage(ctx,bserver.name + " can now hold up to " + str(bypassnum) + " Megacollab(s)","success")
-
-@client.command(pass_context=True)
-async def bypasses(ctx):
-    if str(ctx.author.id) == "172861416364179456":
-        bm = "**Users**\n"
-        for bu in alldatakeys(file="fp-hosters.txt"):
-            bui = ""
-            if bu.startswith("BYPASS"): bui = "BYPASS " + GetMemberGlobal(bu).name
-            else: bui = GetMemberGlobal(bu).name
-            bun = datasettings(file="fp-hosters.txt",method="get",line=bu)
-            bm += bui + ": " + bun + "\n"
-        bm += "**Servers**\n"
-        for bs in alldatakeys(file="fp-servers.txt"):
-            bsi = GetGuild(bs).name
-            bsn = datasettings(file="fp-servers.txt",method="get",line=bs)
-            bm += bsi + ": " + bsn + "\n"
-        await ctx.message.add_reaction(CHAR_SUCCESS)
-        await ctx.author.send(bm)
-
-@client.command(pass_context=True)
-async def toggleserverallow(ctx,tserver):
-    if str(ctx.author.id) == "172861416364179456":
-        if isnumber(tserver):
-            ts = datasettings(file="fp-allowedservers.txt",method="get",line=tserver)
-            if ts is None:
-                datasettings(file="fp-allowedservers.txt",method="add",newkey=tserver,newvalue="ALLOWED")
-                await ctx.message.add_reaction(CHAR_SUCCESS)
-                await ctx.author.send(tserver + " added to Allowed Servers")
-            else:
-                datasettings(file="fp-allowedservers.txt",method="remove",line=tserver)
-                await ctx.message.add_reaction(CHAR_SUCCESS)
-                await ctx.author.send(tserver + " removed from Allowed Servers")
-
 @client.command(pass_context=True)
 async def checkevery(ctx,cdays):
     if ctx.guild:
@@ -1625,7 +1566,38 @@ async def submitprogress(ctx):
         mcc = await MCContext(ctx)
         if mcc is not None:
             spnumber = datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="UPDATES")
-
+            spVIDREQUIRED = datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + spnumber + ".txt",method="get",line="VIDREQUIRED")
+            spPHOTOSREQUIRED = datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + spnumber + ".txt",method="get", line="PHOTOSREQUIRED")
+            spVIDEO = "None"
+            spMEDIA = "None"
+            spparams = []
+            if spVIDREQUIRED.lower() == "true":
+                spparams.append(["Video of Progress","string",spVIDEO,True]); spVIDREQUIRED = True
+            else: spVIDREQUIRED = False
+            if spPHOTOSREQUIRED.lower() == "true":
+                spparams.append(["Photo(s) of Progress","media",spMEDIA,True]); spPHOTOSREQUIRED = True
+            else: spPHOTOSREQUIRED = False
+            if spparams:
+                spR = await ParameterResponseEmbed(ctx,title="Submit Progress for Update " + spnumber,parameters=spparams)
+                if not spR: await ResponseMessage(ctx, "", "failed", "invalidparams")
+                else:
+                    if spVIDREQUIRED and spPHOTOSREQUIRED:
+                        spVIDEO = spR[0][2]; spMEDIA = spR[1][2]
+                        datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + spnumber + ".txt",method="add",
+                                     newkey="VIDEO" + str(ctx.author.id),newvalue=spVIDEO)
+                        datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + spnumber + ".txt", method="add",
+                                     newkey="MEDIA" + str(ctx.author.id), newvalue=str(spMEDIA))
+                    elif spVIDREQUIRED and not spPHOTOSREQUIRED:
+                        spVIDEO = spR[0][2]
+                        datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + spnumber + ".txt", method="add",
+                                     newkey="VIDEO" + str(ctx.author.id), newvalue=spVIDEO)
+                    elif not spVIDREQUIRED and spPHOTOSREQUIRED:
+                        spMEDIA = spR[0][2]
+                        datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + spnumber + ".txt", method="add",
+                                     newkey="MEDIA" + str(ctx.author.id), newvalue=str(spMEDIA))
+                    await ResponseMessage(ctx,"Progress Sent!","success")
+                    await mcc[6].send(mcc[6].name + ", *" + ctx.author.name + "* has submitted progress for Progress Check "
+                                      + spnumber + " for **" + mcc[0] + "**!")
         else:
             await ResponseMessage(ctx, "", "failed", "nomc")
     else:
@@ -1674,6 +1646,66 @@ async def help(ctx):
          "**??findportfolio** <User> - [Anyone]\n" \
          "Finds a User's Portfolio"
     await ResponseMessage(ctx,hm,"success")
+
+
+
+# GB Only Commands
+
+@client.command(pass_context=True)
+async def mcuserlimitbypass(ctx,buser,bypassnum):
+    if str(ctx.author.id) == "172861416364179456":
+        buser = GetMember(buser,ctx.guild)
+        if buser is not None:
+            bnv = True
+            try: bypassnum = int(bypassnum)
+            except: bnv = False
+            if bnv:
+                MCHoster(user=buser,method="bypasslimit",newlimit=bypassnum)
+                await ResponseMessage(ctx,buser.name + " can now host up to " + str(bypassnum) + " Megacollab(s)","success")
+
+@client.command(pass_context=True)
+async def mcserverlimitbypass(ctx,bserver,bypassnum):
+    if str(ctx.author.id) == "172861416364179456":
+        bserver = GetGuild(bserver)
+        if bserver is not None:
+            bnv = True
+            try: bypassnum = int(bypassnum)
+            except: bnv = False
+            if bnv:
+                MCServer(server=bserver,method="bypasslimit",newlimit=bypassnum)
+                await ResponseMessage(ctx,bserver.name + " can now hold up to " + str(bypassnum) + " Megacollab(s)","success")
+
+@client.command(pass_context=True)
+async def bypasses(ctx):
+    if str(ctx.author.id) == "172861416364179456":
+        bm = "**Users**\n"
+        for bu in alldatakeys(file="fp-hosters.txt"):
+            bui = ""
+            if bu.startswith("BYPASS"): bui = "BYPASS " + GetMemberGlobal(bu).name
+            else: bui = GetMemberGlobal(bu).name
+            bun = datasettings(file="fp-hosters.txt",method="get",line=bu)
+            bm += bui + ": " + bun + "\n"
+        bm += "**Servers**\n"
+        for bs in alldatakeys(file="fp-servers.txt"):
+            bsi = GetGuild(bs).name
+            bsn = datasettings(file="fp-servers.txt",method="get",line=bs)
+            bm += bsi + ": " + bsn + "\n"
+        await ctx.message.add_reaction(CHAR_SUCCESS)
+        await ctx.author.send(bm)
+
+@client.command(pass_context=True)
+async def toggleserverallow(ctx,tserver):
+    if str(ctx.author.id) == "172861416364179456":
+        if isnumber(tserver):
+            ts = datasettings(file="fp-allowedservers.txt",method="get",line=tserver)
+            if ts is None:
+                datasettings(file="fp-allowedservers.txt",method="add",newkey=tserver,newvalue="ALLOWED")
+                await ctx.message.add_reaction(CHAR_SUCCESS)
+                await ctx.author.send(tserver + " added to Allowed Servers")
+            else:
+                datasettings(file="fp-allowedservers.txt",method="remove",line=tserver)
+                await ctx.message.add_reaction(CHAR_SUCCESS)
+                await ctx.author.send(tserver + " removed from Allowed Servers")
 
 @client.command(pass_context=True)
 async def ctest(ctx):
