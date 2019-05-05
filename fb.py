@@ -95,8 +95,10 @@ def cleardata(file):
 
 def newfile(file):
     s = None
-    try: s = open(file, "r")
-    except: return None
+    try:
+        s = open(file, "r")
+        return None
+    except: pass
     f = open(file,"a")
     f.close()
 
@@ -621,7 +623,9 @@ def PartsMessage(mcid,pos,s):
     pmGroups = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="GROUPS")
     pmColors = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="COLORS")
     pmTime = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="TIME")
-    pmStatus = statusEmoji[datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="STATUS").lower()]
+    pmStatus = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="STATUS")
+    if pmStatus is None: pmStatus = statusEmoji["empty"]
+    else: pmStatus = statusEmoji[pmStatus.lower()]
     pmType = datasettings(file="fp-mc/" + mcid + "/PART" + pos + ".txt",method="get",line="PARTDESC")
     pmNumber = "**Part " + str(pos) + "**"
     if "art" in pmType.lower(): pmNumber += " [" + pmType + "]"
@@ -824,6 +828,16 @@ def MCServer(server,method,newlimit=0):
         return True
     if method == "bypasslimit": datasettings(file="fp-servers.txt",method="change",line=str(server.id),newvalue=str(newlimit))
 
+def ActivePR(mcc):
+    prnumber = datasettings(file="fp-mc/" + mcc[8] + ".txt",method="get",line="UPDATES")
+    if prnumber is None: return None
+    prduedate = StrToDatetime(datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + prnumber + ".txt",method="get",line="DUEDATE"))
+    if datetime.datetime.now() >= prduedate:
+        prfinished = datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + prnumber + ".txt",method="get",line="FINISHED")
+        if prfinished is not None: return None
+        return [prnumber,False]
+    return [prnumber,True]
+
 @client.event
 async def on_ready():
     print("Bot Ready!")
@@ -842,8 +856,64 @@ async def on_guild_join(guild):
         if asi == str(guild.id): asf = True
     if not asf: await guild.leave()
 
-GLOBALPRM = None
+@client.event
+async def on_message(message):
+    if message.channel is not None:
+        mcc = AutoMCContext(message.channel,message.author)
+        if mcc is not None:
+            mcpr = ActivePR(mcc)
+            if mcpr is not None:
+                if not mcpr[1]:
+                    mcprf = "**Progress Report " + mcpr[0] + " Results**\n"
+                    mcprcreators = []
+                    for n in range(1, int(mcc[3]) + 1):
+                        mcpartcreators = StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt",
+                                                                method="get", line="CREATORS"), message.guild)
+                        for creator in mcpartcreators:
+                            if creator is not None: mcprcreators.append({creator:"*Nothing*"})
+                    for udata in alldatakeys("fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + mcpr[0] + ".txt"):
+                        if udata.startswith("VIDEO"):
+                            ucreator = GetMember(udata.replace("VIDEO",""),message.guild)
+                            for mcpc in mcprcreators:
+                                if list(mcpc.keys())[0] == ucreator:
+                                    mcpc[ucreator] = "Video"
+                        if udata.startswith("MEDIA"):
+                            ucreator = GetMember(udata.replace("MEDIA",""),message.guild)
+                            for mcpc in mcprcreators:
+                                if list(mcpc.keys())[0] == ucreator:
+                                    if mcpc[ucreator] == "Video": mcpc[ucreator] = "Video & Photo(s)"
+                                    else: mcpc[ucreator] = "Photo(s)"
+                    for mcpc in mcprcreators: mcprf += list(mcpc.keys())[0].name + ": " + mcpc[list(mcpc.keys())[0]] + "\n"
+                    await Update(mcc,mcprf)
+                    datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + mcpr[0] + ".txt",method="add",
+                                             newkey="FINISHED",newvalue="FINISHED")
+                else:
+                    mcdays = datasettings(file="fp-mc/" + mcc[8] + ".txt", method="get", line="CHECKDAYS")
+                    if mcdays is not None:
+                        if mcdays != "0":
+                            if isnumber(mcdays):
+                                mcdays = datetime.timedelta(days=int(mcdays))
+                                mcn = datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + mcpr[0] + ".txt", method="get", line="NOTIFIED")
+                                if mcn is None: mcn = DatetimeToStr(datetime.datetime.now())
+                                mcn = StrToDatetime(mcn)
+                                if datetime.datetime.now() >= mcn + mcdays:
+                                    datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + mcpr[0] + ".txt", method="change",
+                                                 line="NOTIFIED",newvalue=DatetimeToStr(datetime.datetime.now()))
+                                    mcfcreators = []
+                                    for udata in alldatakeys("fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + mcpr[0] + ".txt"):
+                                        if udata.startswith("VIDEO"): mcfcreators.append(GetMember(udata.replace("VIDEO",""),message.guild))
+                                        if udata.startswith("MEDIA"): mcfcreators.append(GetMember(udata.replace("MEDIA",""),message.guild))
+                                    mcnfcreators = []
+                                    for n in range(1, int(mcc[3]) + 1):
+                                        mcpartcreators = StrToLODU(datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt",
+                                                                                method="get", line="CREATORS"),message.guild)
+                                        for creator in mcpartcreators:
+                                            if creator is not None:
+                                                if creator not in mcfcreators: mcnfcreators.append(creator)
+                                    for creator in mcnfcreators: await FinishPart(creator,mcc)
+    await client.process_commands(message)
 
+GLOBALPRM = None
 
 @client.command(pass_context=True)
 async def host(ctx):
@@ -1160,7 +1230,7 @@ async def configpart(ctx,partnum):
                                 mcPS = datasettings(file="fp-mc/" + mcc[8] + "/PART" + str(n) + ".txt", method="get",
                                                     line="STATUS")
                                 if mcPS.lower() != "finished": mcAFN = False
-                            if mcAFN: await Update(mcc,"All Parts in " + mcc[0] + " are FINISHED!!!")
+                            if mcAFN: await Update(mcc,"All Parts in " + mcc[0] + " are FINISHED!!!",tag=True)
                     else:
                         await ResponseMessage(ctx, "Either this is an Invalid Part, or you have not generated Parts yet!", "failed")
                 else:
@@ -1521,7 +1591,7 @@ async def progressupdate(ctx):
                     puR = await ParameterResponseEmbed(ctx,"Progress Update " + punumber,parameters=[["Check In (Days)","integer",puDAYS,False],
                                                                                                      ["Description of Progress Needed","string",puDESCRIPTION,True],
                                                                                                      ["Video Required","boolean",puVIDREQUIRED,False],
-                                                                                                     ["Photos Required","boolean",puPHOTOSREQUIRED],False])
+                                                                                                     ["Photos Required","boolean",puPHOTOSREQUIRED,False]])
                     if not puR: await ResponseMessage(ctx, "", "failed", "invalidparams")
                     else:
                         puDAYS = int(puR[0][2])
@@ -1545,12 +1615,12 @@ async def progressupdate(ctx):
                                 datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + punumber + ".txt",method="add",newkey="VIDREQUIRED",newvalue=str(puVIDREQUIRED))
                                 datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + punumber + ".txt",method="add",newkey="PHOTOSREQUIRED",newvalue=str(puPHOTOSREQUIRED))
                                 await ResponseMessage(ctx,"Progress Update " + punumber + " created!","success")
-                                await Update(mcc,"**Progress Update " + punumber + "**\n"
-                                                "Progress Description: " + puDESCRIPTION + "\n"
-                                                "Videos Required: " + str(puVIDREQUIRED) + "\n"
-                                                "Photos Required: " + str(puPHOTOSREQUIRED) + "\n"
-                                                "**Due Date:** " + DatetimeToStr(puDUEDATE) + "\n"
-                                                "*Use ??sendprogress to send progress*")
+                                await Update(mcc,"**Progress Update " + punumber + "**\n" \
+                                                "Progress Description: " + puDESCRIPTION + "\n" \
+                                                "Videos Required: " + str(puVIDREQUIRED) + "\n" \
+                                                "Photos Required: " + str(puPHOTOSREQUIRED) + "\n" \
+                                                "**Due Date:** " + DatetimeToStr(puDUEDATE) + "\n" \
+                                                "*Use ??sendprogress to send progress*",tag=True)
                 else:
                     await ResponseMessage(ctx,"","failed","nothost")
             else:
@@ -1561,7 +1631,7 @@ async def progressupdate(ctx):
         await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
 
 @client.command(pass_context=True)
-async def submitprogress(ctx):
+async def sendprogress(ctx):
     if ctx.guild:
         mcc = await MCContext(ctx)
         if mcc is not None:
@@ -1603,6 +1673,53 @@ async def submitprogress(ctx):
     else:
         await ResponseMessage(ctx, "You need to be in a Server to perform this!", "failed")
 
+@client.command(pass_context=True)
+async def getprogress(ctx,puser):
+    if ctx.guild:
+        if BotHasPermissions(ctx):
+            mcc = await MCContext(ctx)
+            if mcc is not None:
+                if IsHost(ctx, mcc):
+                    gpuser = GetMember(puser,ctx.guild)
+                    if gpuser is not None:
+                        gpprogress = ActivePR(mcc)
+                        if gpprogress is not None:
+                            if gpprogress[1]:
+                                gpuserprogress = []
+                                for udata in alldatakeys("fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + gpprogress[0] + ".txt"):
+                                    if udata.startswith("VIDEO"):
+                                        ucreator = GetMember(udata.replace("VIDEO",""),ctx.guild)
+                                        if ucreator == gpuser: gpuserprogress.append(["video",
+                                            datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + gpprogress[0] + ".txt",method="get",line=udata)])
+                                    if udata.startswith("MEDIA"):
+                                        ucreator = GetMember(udata.replace("MEDIA",""),ctx.guild)
+                                        if ucreator == gpuser: gpuserprogress.append(["media",
+                                            StrToList(datasettings(file="fp-mc/" + mcc[8] + "/ACTIVITYLOG/UPDATE" + gpprogress[0] + ".txt",method="get",line=udata))])
+                                if len(gpuserprogress) == 0:
+                                    await ResponseMessage(ctx, "*" + gpuser.name + "* has not submitted progress for **"
+                                                          + mcc[0] + "**'s Progress Report " + gpprogress[0] + "!","success")
+                                else:
+                                    gpm = "*" + gpuser.name + "*'s progress for **" + mcc[0] + "**'s Progress Report " + gpprogress[0] + ":\n"
+                                    for gpd in gpuserprogress:
+                                        if gpd[0] == "video": gpm += gpd[1] + "\n"
+                                    await ResponseMessage(ctx,gpm,"success")
+                                    for gpd in gpuserprogress:
+                                        if gpd[0] == "media":
+                                            for m in gpd[1]: await datamedia(method="send",message=ctx.message,filename=m)
+                            else:
+                                await ResponseMessage(ctx, "There are no active Progress Reports right now!", "failed")
+                        else:
+                            await ResponseMessage(ctx,"There are no active Progress Reports right now!","failed")
+                    else:
+                        await ResponseMessage(ctx, "", "failed", "invalidparams")
+                else:
+                    await ResponseMessage(ctx,"","failed","nothost")
+            else:
+                await ResponseMessage(ctx,"","failed","nomc")
+        else:
+            await ResponseMessage(ctx,"","failed","botlacksperms")
+    else:
+        await ResponseMessage(ctx,"You need to be in a Server to perform this!","failed")
 
 @client.command(pass_context=True)
 async def finishpart(ctx):
@@ -1637,8 +1754,14 @@ async def help(ctx):
          "Disbands the Megacollab\n" \
          "**??finishmc** - [Host]\n" \
          "When all Parts are finished, this will complete the Megacollab\n" \
-         "**??absolveactivity** - [Host]\n" \
-         "If FINISH PART notifications are on and set to monitor activity, this will reset the activity countdown\n" \
+         "**??checkevery** <Days> - [Host]\n" \
+         "If a Progress Update is active, the Bot will notify all people who haven't made progress every x days\n" \
+         "**??progressupdate** - [Host]\n" \
+         "Creates a Progress Update for creators to meet a deadline of a certain requirement (deco, gameplay, etc)\n" \
+         "**??sendprogress** - [MC Creators]\n" \
+         "Sends progress for a Progress Update\n" \
+         "**??getprogress** <User> - [Host]\n" \
+         "Checks progress from a Creator\n" \
          "**??myportfolio** - [Anyone]\n" \
          "Shows your Portfolio that will be used for Hosts considering Creators\n" \
          "**??editportfolio** - [Anyone]\n" \
